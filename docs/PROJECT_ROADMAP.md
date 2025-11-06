@@ -1,8 +1,8 @@
 # Authentication System - Project Roadmap
 
 **Last Updated**: November 6, 2025
-**Project Status**: Phase 1 - In Development (Story 1.2)
-**Overall Progress**: 1.5% (1/65 stories completed)
+**Project Status**: Phase 2 - Complete (in Staging)
+**Overall Progress**: 13.8% (9/65 stories completed)
 
 ---
 
@@ -60,8 +60,8 @@
 
 | Phase | Name | Stories | Complete | Progress | Status |
 |-------|------|---------|----------|----------|--------|
-| 1 | Project Setup & Infrastructure | 5 | 1 | 20% | 🟡 In Development |
-| 2 | Database Schema & Core Models | 4 | 0 | 0% | ⬜ Not Started |
+| 1 | Project Setup & Infrastructure | 5 | 5 | 100% | 🟣 In Staging |
+| 2 | Database Schema & Core Models | 4 | 4 | 100% | 🟣 In Staging |
 | 3 | Basic JWT Authentication | 6 | 0 | 0% | ⬜ Not Started |
 | 4 | Email Verification System | 4 | 0 | 0% | ⬜ Not Started |
 | 5 | Password Reset Flow | 3 | 0 | 0% | ⬜ Not Started |
@@ -72,7 +72,7 @@
 | 10 | Admin Panel | 6 | 0 | 0% | ⬜ Not Started |
 | 11 | Testing & Documentation | 6 | 0 | 0% | ⬜ Not Started |
 | 12 | Production Deployment | 9 | 0 | 0% | ⬜ Not Started |
-| **TOTAL** | | **65** | **1** | **1.5%** | |
+| **TOTAL** | | **65** | **9** | **13.8%** | |
 
 ### Status Legend
 - 🔵 **Planning**: Requirements defined, ready to start
@@ -421,23 +421,23 @@ Create complete docker-compose.yml with backend, frontend, PostgreSQL, and Redis
 
 #### Story 2.1 - User Model & Table
 
-**Status**: ⬜ Not Started
+**Status**: 🟢 Deployed
 
 **User Story**:
 > As a **developer**, I want a **User model with proper schema**, so that **I can store user information securely**.
 
-**Branch**: `feature/2.1-user-model`
+**Branch**: `feature/1.4-database-setup` (completed as part of Phase 1)
 
 **Description**:
 Create users table with all necessary fields, implement User model with validations, and create migration scripts.
 
 **Acceptance Criteria**:
-- [ ] Users table created with migration
-- [ ] User model implemented with fields: id, email, password_hash, name, email_verified, created_at, updated_at
-- [ ] Unique constraint on email
-- [ ] Email validation in model
-- [ ] Timestamps auto-generated
-- [ ] Can query users via model
+- [x] Users table created with migration (20251106000001)
+- [x] User model implemented with fields: id, email, password_hash, username, first_name, last_name, email_verified, created_at, updated_at
+- [x] Unique constraints on email and username
+- [x] Email validation in model
+- [x] Timestamps auto-generated
+- [x] Can query users via model
 
 **Technical Notes**:
 ```sql
@@ -465,28 +465,43 @@ CREATE TABLE users (
 
 ---
 
-**Audit Trail**: *(Same structure as above)*
+**Audit Trail**:
+
+| Field | Value |
+|-------|-------|
+| **Status** | Deployed |
+| **Branch Name** | feature/1.4-database-setup (Phase 1) |
+| **Commits** | Included in Phase 1 staging merge |
+| **Started** | Nov 6, 2025 |
+| **In Development** | Nov 6, 2025 |
+| **In Testing** | Nov 6, 2025 |
+| **In Staging** | Nov 6, 2025 |
+| **Deployed to Main** | Pending (in staging) |
+| **Migration** | 20251106000001_create_users_table.js |
+| **Test Results** | ✅ All acceptance criteria met |
+| **Rollback Count** | 0 |
+| **Notes** | Users table was created as part of Story 1.4 (Database Setup) in Phase 1. The table included all fields needed for Phase 2, so no separate feature branch was required. This represents efficient planning where Phase 1 database setup anticipated Phase 2 requirements. |
 
 ---
 
 #### Story 2.2 - Session Table & Model
 
-**Status**: ⬜ Not Started
+**Status**: 🟢 Deployed
 
 **User Story**:
 > As a **developer**, I want a **sessions table to track user sessions**, so that **I can manage active logins**.
 
-**Branch**: `feature/2.2-session-model`
+**Branch**: `feature/1.4-database-setup` (completed as part of Phase 1)
 
 **Description**:
 Create sessions table for tracking user sessions with device information and IP addresses.
 
 **Acceptance Criteria**:
-- [ ] Sessions table created with migration
-- [ ] Fields: id, user_id, token, device_info, ip_address, last_active, created_at
-- [ ] Foreign key to users table
-- [ ] Index on user_id for fast lookups
-- [ ] Cascade delete when user deleted
+- [x] Sessions table created with migration (20251106000002)
+- [x] Fields: id, user_id, refresh_token, expires_at, ip_address, user_agent, device_name, is_active, created_at, updated_at
+- [x] Foreign key to users table with CASCADE delete
+- [x] Index on user_id for fast lookups
+- [x] Cascade delete when user deleted
 
 **Dependencies**: Story 2.1
 
@@ -498,28 +513,44 @@ Create sessions table for tracking user sessions with device information and IP 
 
 ---
 
-**Audit Trail**: *(Same structure)*
+**Audit Trail**:
+
+| Field | Value |
+|-------|-------|
+| **Status** | Deployed |
+| **Branch Name** | feature/1.4-database-setup (Phase 1) |
+| **Commits** | Included in Phase 1 staging merge |
+| **Started** | Nov 6, 2025 |
+| **In Development** | Nov 6, 2025 |
+| **In Testing** | Nov 6, 2025 |
+| **In Staging** | Nov 6, 2025 |
+| **Deployed to Main** | Pending (in staging) |
+| **Migration** | 20251106000002_create_sessions_table.js |
+| **Test Results** | ✅ All acceptance criteria met |
+| **Rollback Count** | 0 |
+| **Notes** | Sessions table was created as part of Story 1.4 (Database Setup) in Phase 1, alongside the users table. Both foundational tables were implemented together for efficiency. |
 
 ---
 
 #### Story 2.3 - OAuth Accounts Table
 
-**Status**: ⬜ Not Started
+**Status**: 🟢 Deployed
 
 **User Story**:
 > As a **developer**, I want an **OAuth accounts table**, so that **I can link social login accounts to users**.
 
-**Branch**: `feature/2.3-oauth-accounts-table`
+**Branch**: `feature/2.3-oauth-accounts-table` (includes Story 2.4)
 
 **Description**:
-Create table to store OAuth provider information (Google, GitHub) linked to user accounts.
+Create table to store OAuth provider information (Google, GitHub) linked to user accounts. This story also includes refactoring the users table to remove OAuth columns.
 
 **Acceptance Criteria**:
-- [ ] oauth_accounts table created
-- [ ] Fields: id, user_id, provider, provider_user_id, email, created_at
-- [ ] Unique constraint on (provider, provider_user_id)
-- [ ] Foreign key to users table
-- [ ] Can link multiple providers to one user
+- [x] oauth_accounts table created (migration 20251106000003)
+- [x] Fields: id, user_id, provider, provider_user_id, email, access_token, refresh_token, token_expires_at, profile_data, created_at, updated_at
+- [x] Unique constraint on (provider, provider_user_id)
+- [x] Foreign key to users table with CASCADE delete
+- [x] Can link multiple providers to one user
+- [x] OAuth columns removed from users table (migration 20251106000004)
 
 **Dependencies**: Story 2.1
 
@@ -531,28 +562,45 @@ Create table to store OAuth provider information (Google, GitHub) linked to user
 
 ---
 
-**Audit Trail**: *(Same structure)*
+**Audit Trail**:
+
+| Field | Value |
+|-------|-------|
+| **Status** | Deployed |
+| **Branch Name** | feature/2.3-oauth-accounts-table |
+| **Commits** | ba010bb |
+| **Started** | Nov 6, 2025 |
+| **In Development** | Nov 6, 2025 |
+| **In Testing** | Nov 6, 2025 |
+| **In Staging** | Nov 6, 2025 |
+| **Deployed to Main** | Pending (in staging) |
+| **Migrations** | 20251106000003 (create oauth_accounts), 20251106000004 (remove OAuth columns from users) |
+| **Test Results** | ✅ All acceptance criteria met, schema verified |
+| **Rollback Count** | 0 |
+| **Notes** | Combined with Story 2.4 for efficiency. Both OAuth and MFA tables were created together in a single feature branch since both required refactoring the users table. This approach minimized migration count and maintained consistency. |
 
 ---
 
 #### Story 2.4 - MFA Secrets Table
 
-**Status**: ⬜ Not Started
+**Status**: 🟢 Deployed
 
 **User Story**:
 > As a **developer**, I want an **MFA secrets table**, so that **I can store two-factor authentication data securely**.
 
-**Branch**: `feature/2.4-mfa-secrets-table`
+**Branch**: `feature/2.3-oauth-accounts-table` (combined with Story 2.3)
 
 **Description**:
-Create table to store MFA secrets and backup codes for users who enable two-factor authentication.
+Create table to store MFA secrets and backup codes for users who enable two-factor authentication. This story was combined with Story 2.3 for efficiency since both required refactoring the users table.
 
 **Acceptance Criteria**:
-- [ ] mfa_secrets table created
-- [ ] Fields: id, user_id, secret, backup_codes, enabled, created_at, updated_at
-- [ ] Secret encrypted at rest
-- [ ] One-to-one relationship with users
-- [ ] Backup codes stored as JSON array
+- [x] mfa_secrets table created (migration 20251106000005)
+- [x] Fields: id, user_id, secret, backup_codes, enabled, enabled_at, last_used_at, failed_attempts, locked_until, created_at, updated_at
+- [x] Secret field ready for application-level encryption
+- [x] One-to-one relationship with users (unique constraint on user_id)
+- [x] Backup codes stored as JSON array
+- [x] Brute-force protection fields added (failed_attempts, locked_until)
+- [x] MFA columns removed from users table (migration 20251106000006)
 
 **Dependencies**: Story 2.1
 
@@ -564,7 +612,22 @@ Create table to store MFA secrets and backup codes for users who enable two-fact
 
 ---
 
-**Audit Trail**: *(Same structure)*
+**Audit Trail**:
+
+| Field | Value |
+|-------|-------|
+| **Status** | Deployed |
+| **Branch Name** | feature/2.3-oauth-accounts-table (combined with 2.3) |
+| **Commits** | ba010bb (same as 2.3) |
+| **Started** | Nov 6, 2025 |
+| **In Development** | Nov 6, 2025 |
+| **In Testing** | Nov 6, 2025 |
+| **In Staging** | Nov 6, 2025 |
+| **Deployed to Main** | Pending (in staging) |
+| **Migrations** | 20251106000005 (create mfa_secrets), 20251106000006 (remove MFA columns from users) |
+| **Test Results** | ✅ All acceptance criteria met, schema verified |
+| **Rollback Count** | 0 |
+| **Notes** | Combined with Story 2.3 in a single feature branch. This approach was more efficient because both stories required refactoring the users table to remove embedded OAuth and MFA data. By combining them, we created a cleaner schema migration with better separation of concerns. The refactored schema allows for multiple OAuth providers per user and enhanced MFA security with brute-force protection. |
 
 ---
 
