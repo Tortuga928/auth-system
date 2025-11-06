@@ -643,6 +643,30 @@ function generateAccessToken(user) {
 3. **Verify Docker environment** is running
 4. **Check git status** and current branch
 
+### Starting a New Phase or User Story
+
+**⚠️ CRITICAL: ALWAYS create a feature branch automatically when starting new phases/user stories**
+
+When the user says they want to start a new phase or user story from PROJECT_ROADMAP.md:
+
+1. **DO NOT ask if they want a feature branch** - automatically create one
+2. **Use the naming convention**: `feature/story-id-description`
+   - Example: `feature/2.1-database-schema`
+   - Example: `feature/3.2-jwt-authentication`
+3. **Create branch from master** (current main branch):
+   ```bash
+   git checkout -b feature/2.1-database-schema
+   ```
+4. **Confirm branch creation** to user and proceed with implementation
+5. **Only work on master for**:
+   - Documentation-only updates (like CLAUDE.md, README.md)
+   - Project infrastructure changes
+   - Configuration files that affect all features
+
+**Why this matters**: Feature branches keep the main codebase stable, allow parallel development, and make it easy to rollback if needed.
+
+**Branch Note**: Currently using `master` as the main branch (will migrate to `main` later per git workflow docs).
+
 ### During Development
 
 1. **Use Docker Compose** for all development
@@ -669,6 +693,8 @@ function generateAccessToken(user) {
 ❌ Forgetting to run migrations
 ❌ Using Windows-style paths in Git Bash
 ❌ Not following git workflow (feature → staging → main)
+❌ **Working directly on master for feature development** (always create feature branches)
+❌ Asking user if they want a feature branch (just create it automatically)
 
 ---
 
@@ -691,5 +717,5 @@ function generateAccessToken(user) {
 ---
 
 *Last Updated: November 6, 2025*
-*Version: 1.0*
-*Current Phase: 1 (Infrastructure Complete)*
+*Version: 1.1*
+*Current Phase: 1 (Infrastructure Complete - Ready for Phase 2)*
