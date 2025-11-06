@@ -12,7 +12,7 @@ const config = {
 
   // Database
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/authdb',
+    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5433/authdb',
   },
 
   // Redis
