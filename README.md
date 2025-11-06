@@ -61,7 +61,7 @@ Comprehensive documentation is available in the `/docs` directory:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Tortuga928/auth-system.git
 cd auth-system
 ```
 

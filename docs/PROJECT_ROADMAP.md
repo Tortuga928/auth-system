@@ -1,6 +1,6 @@
 # Authentication System - Project Roadmap
 
-**Last Updated**: November 5, 2025
+**Last Updated**: November 6, 2025
 **Project Status**: Phase 1 - Planning Complete
 **Overall Progress**: 0% (0/65 stories completed)
 
@@ -40,8 +40,8 @@
 ### Repository Information
 - **Project ID**: auth-system
 - **Location**: C:\Users\MSTor\Projects\auth-system
-- **Git Remote**: (To be added)
-- **Docker Hub**: mstor/auth-backend, mstor/auth-frontend
+- **Git Remote**: https://github.com/Tortuga928/auth-system
+- **Docker Hub**: tortuga928/auth-backend, tortuga928/auth-frontend
 
 ### Branching Strategy
 - **Main Branch**: `main` (production)

@@ -8,8 +8,7 @@
 **Platform**: Windows with Git Bash (MINGW64_NT-10.0-26100)
 
 **Git Repositories**:
-- Backend: (To be added)
-- Frontend: (To be added)
+- Main Repository: https://github.com/Tortuga928/auth-system
 
 **Development Ports**:
 - Frontend: 3000
