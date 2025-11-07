@@ -2,7 +2,7 @@
 
 **Last Updated**: November 7, 2025
 **Project Status**: Phase 4 - In Progress (in Staging)
-**Overall Progress**: 24.6% (16/65 stories completed)
+**Overall Progress**: 27.7% (18/65 stories completed)
 
 ---
 
@@ -63,7 +63,7 @@
 | 1 | Project Setup & Infrastructure | 5 | 5 | 100% | 🟣 In Staging |
 | 2 | Database Schema & Core Models | 4 | 4 | 100% | 🟣 In Staging |
 | 3 | Basic JWT Authentication | 6 | 6 | 100% | 🟣 In Staging |
-| 4 | Email Verification System | 4 | 1 | 25% | 🟡 In Development |
+| 4 | Email Verification System | 4 | 3 | 75% | 🟣 In Staging |
 | 5 | Password Reset Flow | 3 | 0 | 0% | ⬜ Not Started |
 | 6 | OAuth2 Social Login | 6 | 0 | 0% | ⬜ Not Started |
 | 7 | Multi-Factor Authentication | 5 | 0 | 0% | ⬜ Not Started |
@@ -72,7 +72,7 @@
 | 10 | Admin Panel | 6 | 0 | 0% | ⬜ Not Started |
 | 11 | Testing & Documentation | 6 | 0 | 0% | ⬜ Not Started |
 | 12 | Production Deployment | 9 | 0 | 0% | ⬜ Not Started |
-| **TOTAL** | | **65** | **16** | **24.6%** | |
+| **TOTAL** | | **65** | **18** | **27.7%** | |
 
 ### Status Legend
 - 🔵 **Planning**: Requirements defined, ready to start
@@ -779,7 +779,7 @@ Implement JWT token generation with access and refresh tokens, including token v
 - [ ] Refresh token generated (expires in 7 days)
 - [ ] JWT_SECRET configured from environment
 - [ ] Token validation middleware created
-- [ ] Expired tokens rejected
+- [x] Expired tokens rejected
 - [ ] Invalid tokens rejected
 
 **Dependencies**: Story 2.1
@@ -888,12 +888,12 @@ Create endpoint to refresh access token using refresh token.
 Set up Nodemailer with SMTP configuration (Gmail, SendGrid, or similar) and create email service layer.
 
 **Acceptance Criteria**:
-- [ ] Nodemailer installed and configured
-- [ ] SMTP credentials in environment variables
-- [ ] Email service module created
-- [ ] Can send test email
-- [ ] Email templates folder structure
-- [ ] Error handling for failed emails
+- [x] Nodemailer installed and configured
+- [x] SMTP credentials in environment variables
+- [x] Email service module created
+- [x] Can send test email
+- [x] Email templates folder structure
+- [x] Error handling for failed emails
 
 **Dependencies**: Phase 1
 
@@ -921,10 +921,10 @@ Set up Nodemailer with SMTP configuration (Gmail, SendGrid, or similar) and crea
 Create system for generating, storing, and validating email verification tokens with expiration.
 
 **Acceptance Criteria**:
-- [ ] Verification token generated on registration
-- [ ] Token stored in database with expiration (24 hours)
-- [ ] Token is random and cryptographically secure
-- [ ] Token validation function created
+- [x] Verification token generated on registration
+- [x] Token stored in database with expiration (24 hours)
+- [x] Token is random and cryptographically secure
+- [x] Token validation function created
 - [ ] Expired tokens rejected
 
 **Dependencies**: Story 2.1
@@ -955,12 +955,12 @@ Create system for generating, storing, and validating email verification tokens 
 Send verification email with link when user registers, including HTML email template.
 
 **Acceptance Criteria**:
-- [ ] Verification email sent on registration
-- [ ] Email contains verification link
-- [ ] Link includes verification token
-- [ ] HTML email template created
-- [ ] Plain text fallback included
-- [ ] Email sent asynchronously (doesn't block registration)
+- [x] Verification email sent on registration
+- [x] Email contains verification link
+- [x] Link includes verification token
+- [x] HTML email template created
+- [x] Plain text fallback included
+- [x] Email sent asynchronously (doesn't block registration)
 
 **Dependencies**: Stories 4.1, 4.2
 
