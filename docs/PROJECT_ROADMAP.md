@@ -2,7 +2,7 @@
 
 **Last Updated**: November 7, 2025
 **Project Status**: Phase 4 - In Progress (in Staging)
-**Overall Progress**: 30.8% (20/65 stories completed)
+**Overall Progress**: 33.8% (22/65 stories completed)
 
 ---
 
@@ -64,7 +64,7 @@
 | 2 | Database Schema & Core Models | 4 | 4 | 100% | 🟣 In Staging |
 | 3 | Basic JWT Authentication | 6 | 6 | 100% | 🟣 In Staging |
 | 4 | Email Verification System | 4 | 4 | 100% | 🟣 In Staging |
-| 5 | Password Reset Flow | 3 | 0 | 0% | ⬜ Not Started |
+| 5 | Password Reset Flow | 3 | 2 | 67% | 🟣 In Staging |
 | 6 | OAuth2 Social Login | 6 | 0 | 0% | ⬜ Not Started |
 | 7 | Multi-Factor Authentication | 5 | 0 | 0% | ⬜ Not Started |
 | 8 | User Dashboard & Profile | 6 | 0 | 0% | ⬜ Not Started |
@@ -72,7 +72,7 @@
 | 10 | Admin Panel | 6 | 0 | 0% | ⬜ Not Started |
 | 11 | Testing & Documentation | 6 | 0 | 0% | ⬜ Not Started |
 | 12 | Production Deployment | 9 | 0 | 0% | ⬜ Not Started |
-| **TOTAL** | | **65** | **20** | **30.8%** | |
+| **TOTAL** | | **65** | **22** | **33.8%** | |
 
 ### Status Legend
 - 🔵 **Planning**: Requirements defined, ready to start
@@ -1034,12 +1034,12 @@ Create endpoint that handles email verification link clicks and marks user as ve
 Create endpoint that generates password reset token and sends reset email.
 
 **Acceptance Criteria**:
-- [ ] POST /api/auth/forgot-password endpoint created
-- [ ] Accepts email address
-- [ ] Generates reset token (expires in 1 hour)
-- [ ] Sends password reset email
-- [ ] Rate limited (max 3 requests per hour)
-- [ ] Returns success even if email doesn't exist (security)
+- [x] POST /api/auth/forgot-password endpoint created
+- [x] Accepts email address
+- [x] Generates reset token (expires in 1 hour)
+- [x] Sends password reset email
+- [ ] Rate limited (max 3 requests per hour) (deferred to Phase 9)
+- [x] Returns success even if email doesn't exist (security)
 
 **Dependencies**: Story 4.1
 
@@ -1068,13 +1068,13 @@ Create endpoint that generates password reset token and sends reset email.
 Create endpoint that validates reset token and updates user password.
 
 **Acceptance Criteria**:
-- [ ] POST /api/auth/reset-password/:token endpoint created
-- [ ] Validates reset token
-- [ ] Validates new password strength
-- [ ] Updates password in database
-- [ ] Invalidates reset token after use
-- [ ] Invalidates all existing sessions
-- [ ] Sends confirmation email
+- [x] POST /api/auth/reset-password/:token endpoint created
+- [x] Validates reset token
+- [x] Validates new password strength
+- [x] Updates password in database
+- [x] Invalidates reset token after use
+- [ ] Invalidates all existing sessions (deferred to Phase 9)
+- [x] Sends confirmation email
 
 **Dependencies**: Story 5.1
 
