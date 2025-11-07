@@ -7,6 +7,8 @@
 const User = require('../models/User');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateTokenPair, verifyRefreshToken, generateAccessToken } = require('../utils/jwt');
+const tokenService = require('../utils/tokenService');
+const emailService = require('../services/emailService');
 
 /**
  * Register a new user
@@ -83,6 +85,31 @@ const register = async (req, res, next) => {
       role: 'user',
     });
 
+    // Generate email verification token
+    const { token: verificationToken, expires: verificationExpires } =
+      tokenService.generateEmailVerificationToken();
+
+    // Update user with verification token
+    await User.update(user.id, {
+      email_verification_token: verificationToken,
+      email_verification_expires: verificationExpires,
+    });
+
+    // Send verification email asynchronously (non-blocking)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+
+    // Send email without waiting (async, non-blocking)
+    emailService
+      .sendVerificationEmail(user.email, user.username, verificationUrl)
+      .then(() => {
+        console.log(`✅ Verification email sent to ${user.email}`);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to send verification email:', error.message);
+        // Don't fail registration if email fails - user can resend later
+      });
+
     // Generate tokens
     const tokens = generateTokenPair({
       id: user.id,
@@ -93,7 +120,7 @@ const register = async (req, res, next) => {
     // Return success response
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'User registered successfully. Please check your email to verify your account.',
       data: {
         user: {
           id: user.id,

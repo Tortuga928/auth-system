@@ -102,7 +102,17 @@ class User {
    * @returns {Promise<Object>} Updated user (without password_hash)
    */
   static async update(id, updates) {
-    const allowedFields = ['username', 'email', 'password_hash', 'role', 'email_verified'];
+    const allowedFields = [
+      'username',
+      'email',
+      'password_hash',
+      'role',
+      'email_verified',
+      'email_verification_token',
+      'email_verification_expires',
+      'password_reset_token',
+      'password_reset_expires',
+    ];
     const fields = [];
     const values = [];
     let paramCount = 1;
