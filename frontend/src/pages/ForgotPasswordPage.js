@@ -32,7 +32,7 @@ function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const response = await apiService.auth.forgotPassword({ email });
+      await apiService.auth.forgotPassword({ email });
       setSuccess(true);
       setEmail(''); // Clear form after success
     } catch (err) {
