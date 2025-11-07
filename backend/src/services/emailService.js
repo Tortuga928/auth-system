@@ -298,6 +298,79 @@ Auth System Team
 }
 
 /**
+ * Send password reset confirmation email
+ *
+ * @param {string} to - Recipient email address
+ * @param {string} username - User's username
+ * @returns {Promise<Object>} Send result
+ */
+async function sendPasswordResetConfirmationEmail(to, username) {
+  const subject = 'Password Reset Successful';
+
+  const text = `
+Hello ${username},
+
+Your password has been successfully reset.
+
+If you did not make this change, please contact support immediately.
+
+Best regards,
+Auth System Team
+  `.trim();
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+          }
+          .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+          }
+          .footer {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>Password Reset Successful</h2>
+          <p>Hello ${username},</p>
+          <div class="success">
+            ✅ Your password has been successfully reset.
+          </div>
+          <p>You can now log in with your new password.</p>
+          <p class="footer">
+            If you did not make this change, please contact support immediately.
+          </p>
+        </div>
+      </body>
+    </html>
+  `.trim();
+
+  return sendEmail({ to, subject, text, html });
+}
+
+/**
  * Test email configuration
  *
  * Sends a test email to verify configuration
@@ -327,5 +400,6 @@ module.exports = {
   sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendPasswordResetConfirmationEmail,
   sendTestEmail,
 };

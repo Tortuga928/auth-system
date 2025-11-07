@@ -456,6 +456,99 @@ const forgotPassword = async (req, res, next) => {
   }
 };
 
+/**
+ * Reset password - Set new password using reset token
+ *
+ * POST /api/auth/reset-password/:token
+ * Body: { password }
+ * Public endpoint - no authentication required
+ */
+const resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    // Validate token parameter
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token is required',
+      });
+    }
+
+    // Validate password parameter
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password is required',
+      });
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password does not meet requirements',
+        errors: passwordValidation.errors,
+      });
+    }
+
+    // Find user with this reset token
+    const user = await User.findByPasswordResetToken(token);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+      });
+    }
+
+    // Validate token using tokenService
+    const validation = tokenService.validatePasswordResetToken(
+      token,
+      user.password_reset_token,
+      user.password_reset_expires
+    );
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.error,
+      });
+    }
+
+    // Hash new password
+    const password_hash = await hashPassword(password);
+
+    // Update password and clear reset token
+    await User.update(user.id, {
+      password_hash,
+      ...tokenService.clearPasswordResetToken(),
+    });
+
+    // Send confirmation email asynchronously (non-blocking)
+    emailService
+      .sendPasswordResetConfirmationEmail(user.email, user.username)
+      .then(() => {
+        console.log(`✅ Password reset confirmation email sent to ${user.email}`);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to send confirmation email:', error.message);
+        // Don't fail the request if email fails
+      });
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successfully. You can now log in with your new password.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -463,4 +556,5 @@ module.exports = {
   refresh,
   verifyEmail,
   forgotPassword,
+  resetPassword,
 };

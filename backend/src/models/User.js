@@ -114,6 +114,25 @@ class User {
   }
 
   /**
+   * Find user by password reset token
+   *
+   * @param {string} token - Password reset token
+   * @returns {Promise<Object|null>} User object (with token fields) or null
+   */
+  static async findByPasswordResetToken(token) {
+    const query = `
+      SELECT id, username, email, role, email_verified,
+             password_reset_token, password_reset_expires,
+             created_at, updated_at
+      FROM users
+      WHERE password_reset_token = $1
+    `;
+
+    const result = await db.query(query, [token]);
+    return result.rows[0] || null;
+  }
+
+  /**
    * Update user
    *
    * @param {number} id - User ID
