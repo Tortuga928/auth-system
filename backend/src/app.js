@@ -6,12 +6,15 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const session = require('express-session');
 const config = require('./config');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { initializePassport } = require('./config/passport');
 
 // Import routes
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
+const oauthRoutes = require('./routes/oauth');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -37,9 +40,16 @@ if (config.env === 'development') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Session middleware (required for Passport)
+app.use(session(config.session));
+
+// Initialize Passport.js
+initializePassport(app);
+
 // API Routes
 app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/oauth', oauthRoutes);
 
 // Test routes (development only)
 if (config.env === 'development') {
