@@ -6,7 +6,7 @@
 
 const User = require('../models/User');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
-const { generateTokenPair } = require('../utils/jwt');
+const { generateTokenPair, verifyRefreshToken, generateAccessToken } = require('../utils/jwt');
 
 /**
  * Register a new user
@@ -221,8 +221,71 @@ const getCurrentUser = async (req, res, next) => {
   }
 };
 
+/**
+ * Refresh access token
+ *
+ * POST /api/auth/refresh
+ * Body: { refreshToken }
+ */
+const refresh = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+
+    // Validate required field
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required',
+      });
+    }
+
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(refreshToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token',
+        error: error.message,
+      });
+    }
+
+    // Get user from database
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found',
+        error: 'User associated with refresh token does not exist',
+      });
+    }
+
+    // Generate new access token
+    const newAccessToken = generateAccessToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Return new access token
+    res.status(200).json({
+      success: true,
+      message: 'Token refreshed successfully',
+      data: {
+        accessToken: newAccessToken,
+      },
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getCurrentUser,
+  refresh,
 };
