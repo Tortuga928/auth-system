@@ -383,10 +383,84 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+/**
+ * Forgot password - Request password reset
+ *
+ * POST /api/auth/forgot-password
+ * Body: { email }
+ * Public endpoint - no authentication required
+ */
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email parameter
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required',
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format',
+      });
+    }
+
+    // Find user by email
+    const user = await User.findByEmail(email);
+
+    // If user exists, generate and send reset token
+    if (user) {
+      // Generate password reset token (1 hour expiration)
+      const { token: resetToken, expires: resetExpires } =
+        tokenService.generatePasswordResetToken();
+
+      // Update user with reset token
+      await User.update(user.id, {
+        password_reset_token: resetToken,
+        password_reset_expires: resetExpires,
+      });
+
+      // Send password reset email asynchronously (non-blocking)
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+      // Send email without waiting (async, non-blocking)
+      emailService
+        .sendPasswordResetEmail(user.email, user.username, resetUrl)
+        .then(() => {
+          console.log(`✅ Password reset email sent to ${user.email}`);
+        })
+        .catch((error) => {
+          console.error('❌ Failed to send password reset email:', error.message);
+          // Don't fail the request if email fails - user can retry
+        });
+    } else {
+      // User doesn't exist, but don't reveal this for security
+      console.log(`⚠️  Password reset requested for non-existent email: ${email}`);
+    }
+
+    // Always return success to prevent email enumeration
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists with that email, a password reset link has been sent.',
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getCurrentUser,
   refresh,
   verifyEmail,
+  forgotPassword,
 };

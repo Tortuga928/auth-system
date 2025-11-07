@@ -34,6 +34,14 @@ router.post('/login', authController.login);
 router.post('/refresh', authController.refresh);
 
 /**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Request password reset
+ * @access  Public
+ * @body    { email }
+ */
+router.post('/forgot-password', authController.forgotPassword);
+
+/**
  * @route   GET /api/auth/verify-email/:token
  * @desc    Verify user email address
  * @access  Public
