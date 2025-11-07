@@ -310,9 +310,83 @@ const refresh = async (req, res, next) => {
   }
 };
 
+/**
+ * Verify email address
+ *
+ * GET /api/auth/verify-email/:token
+ * Public endpoint - no authentication required
+ */
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    // Validate token parameter
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token is required',
+      });
+    }
+
+    // Find user with this verification token
+    const user = await User.findByVerificationToken(token);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification token',
+      });
+    }
+
+    // Validate token using tokenService
+    const validation = tokenService.validateEmailVerificationToken(
+      token,
+      user.email_verification_token,
+      user.email_verification_expires
+    );
+
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.error,
+      });
+    }
+
+    // Check if already verified
+    if (user.email_verified) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email already verified',
+        data: {
+          email_verified: true,
+        },
+      });
+    }
+
+    // Mark user as verified and clear token
+    await User.update(user.id, {
+      email_verified: true,
+      ...tokenService.clearEmailVerificationToken(),
+    });
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully',
+      data: {
+        email_verified: true,
+      },
+    });
+  } catch (error) {
+    console.error('Email verification error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
   getCurrentUser,
   refresh,
+  verifyEmail,
 };

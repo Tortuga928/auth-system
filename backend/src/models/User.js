@@ -95,6 +95,25 @@ class User {
   }
 
   /**
+   * Find user by email verification token
+   *
+   * @param {string} token - Email verification token
+   * @returns {Promise<Object|null>} User object (with token fields) or null
+   */
+  static async findByVerificationToken(token) {
+    const query = `
+      SELECT id, username, email, role, email_verified,
+             email_verification_token, email_verification_expires,
+             created_at, updated_at
+      FROM users
+      WHERE email_verification_token = $1
+    `;
+
+    const result = await db.query(query, [token]);
+    return result.rows[0] || null;
+  }
+
+  /**
    * Update user
    *
    * @param {number} id - User ID
