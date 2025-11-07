@@ -12,6 +12,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 // Import routes
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
+const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
 const app = express();
@@ -39,6 +40,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // API Routes
 app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+
+// Test routes (development only)
+if (config.env === 'development') {
+  app.use('/api/test-email', testEmailRoutes);
+  console.log('📧 Test email routes enabled (development mode)');
+}
 
 // Welcome route
 app.get('/', (req, res) => {
