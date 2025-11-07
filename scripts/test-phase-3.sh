@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Phase 3 Comprehensive Test Suite
-# Tests Basic JWT Authentication (Stories 3.1 - 3.4)
+# Tests Basic JWT Authentication (Stories 3.1 - 3.6)
 
 echo "=========================================================="
 echo "   PHASE 3 COMPREHENSIVE TEST SUITE"
@@ -429,6 +429,84 @@ fi
 
 echo ""
 echo "=========================================================="
+echo "TEST CATEGORY 9: Token Refresh (Story 3.6)"
+echo "=========================================================="
+echo ""
+
+# Test 20: Valid refresh token
+run_api_test \
+    "Refresh with valid token" \
+    "POST" \
+    "http://localhost:5000/api/auth/refresh" \
+    "{\"refreshToken\":\"$REFRESH_TOKEN\"}" \
+    "200" \
+    "success.*true.*accessToken" \
+    "Token Refresh"
+
+# Test 21: Missing refresh token
+run_api_test \
+    "Reject missing refresh token" \
+    "POST" \
+    "http://localhost:5000/api/auth/refresh" \
+    '{}' \
+    "400" \
+    "Refresh token is required" \
+    "Token Refresh"
+
+# Test 22: Invalid refresh token
+run_api_test \
+    "Reject invalid refresh token" \
+    "POST" \
+    "http://localhost:5000/api/auth/refresh" \
+    '{"refreshToken":"invalid.token.here"}' \
+    "401" \
+    "Invalid or expired refresh token" \
+    "Token Refresh"
+
+# Test 23: Using access token instead of refresh token
+run_api_test \
+    "Reject access token (wrong type)" \
+    "POST" \
+    "http://localhost:5000/api/auth/refresh" \
+    "{\"refreshToken\":\"$ACCESS_TOKEN\"}" \
+    "401" \
+    "Invalid or expired refresh token" \
+    "Token Refresh"
+
+# Test 24: Verify new access token is different
+TOTAL=$((TOTAL + 1))
+echo -n "[$TOTAL] New access token is different from original... "
+response=$(curl -s -X POST http://localhost:5000/api/auth/refresh \
+    -H "Content-Type: application/json" \
+    -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}")
+NEW_ACCESS_TOKEN=$(echo "$response" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+
+if [ -n "$NEW_ACCESS_TOKEN" ] && [ "$NEW_ACCESS_TOKEN" != "$ACCESS_TOKEN" ]; then
+    echo -e "${GREEN}✓ PASS${NC}"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}✗ FAIL${NC}"
+    FAILED=$((FAILED + 1))
+    FAILED_TESTS+=("[Token Refresh] New token same as old or empty")
+fi
+
+# Test 25: Verify new access token works for authentication
+TOTAL=$((TOTAL + 1))
+echo -n "[$TOTAL] New access token works for /me endpoint... "
+me_response=$(curl -s -X GET http://localhost:5000/api/auth/me \
+    -H "Authorization: Bearer $NEW_ACCESS_TOKEN")
+
+if echo "$me_response" | grep -q "success.*true" && echo "$me_response" | grep -q "test1@example.com"; then
+    echo -e "${GREEN}✓ PASS${NC}"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "${RED}✗ FAIL${NC}"
+    FAILED=$((FAILED + 1))
+    FAILED_TESTS+=("[Token Refresh] New access token doesn't work")
+fi
+
+echo ""
+echo "=========================================================="
 echo "   FINAL TEST RESULTS"
 echo "=========================================================="
 echo ""
@@ -446,10 +524,12 @@ if [ $FAILED -eq 0 ]; then
     echo "  ✓ JWT token generation & validation (Story 3.4)"
     echo "  ✓ User registration endpoint (Story 3.2)"
     echo "  ✓ User login endpoint (Story 3.3)"
+    echo "  ✓ Protected routes middleware (Story 3.5)"
+    echo "  ✓ Token refresh endpoint (Story 3.6)"
     echo "  ✓ Database operations"
     echo "  ✓ Security measures"
     echo ""
-    echo "Ready for Story 3.5: Protected Routes Middleware"
+    echo "Phase 3 COMPLETE - All 6 stories implemented and tested!"
 
     # Cleanup
     cleanup_test_data
