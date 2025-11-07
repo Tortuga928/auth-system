@@ -82,29 +82,68 @@ router.get(
  * @route   GET /api/oauth/github
  * @desc    Initiate GitHub OAuth2 flow
  * @access  Public
- *
- * Implementation: Story 6.3 - GitHub OAuth Strategy
  */
-router.get('/github', (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: 'GitHub OAuth not yet implemented (Story 6.3)',
-  });
-});
+router.get(
+  '/github',
+  passport.authenticate('github', {
+    scope: ['user:email'],
+  })
+);
 
 /**
  * @route   GET /api/oauth/github/callback
  * @desc    GitHub OAuth2 callback
  * @access  Public
- *
- * Implementation: Story 6.3 - GitHub OAuth Strategy
  */
-router.get('/github/callback', (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: 'GitHub OAuth callback not yet implemented (Story 6.3)',
-  });
-});
+router.get(
+  '/github/callback',
+  passport.authenticate('github', { failureRedirect: '/login?error=oauth_failed' }),
+  (req, res) => {
+    try {
+      // User is authenticated - generate JWT tokens
+      const user = req.user;
+
+      // Generate access token
+      const accessToken = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        config.jwt.secret,
+        { expiresIn: config.jwt.expiresIn }
+      );
+
+      // Generate refresh token
+      const refreshToken = jwt.sign(
+        { id: user.id },
+        config.jwt.secret,
+        { expiresIn: config.jwt.refreshExpiresIn }
+      );
+
+      // TODO: In production, redirect to frontend with token
+      // For now, return JSON response for testing
+      res.json({
+        success: true,
+        message: 'GitHub OAuth login successful',
+        data: {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            email_verified: user.email_verified,
+          },
+          accessToken,
+          refreshToken,
+        },
+      });
+    } catch (error) {
+      console.error('❌ OAuth callback error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'OAuth authentication failed',
+        details: error.message,
+      });
+    }
+  }
+);
 
 /**
  * @route   GET /api/oauth/status
