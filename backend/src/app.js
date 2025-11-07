@@ -11,6 +11,7 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 // Import routes
 const healthRoutes = require('./routes/health');
+const authRoutes = require('./routes/auth');
 
 // Create Express app
 const app = express();
@@ -37,6 +38,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
 app.use('/health', healthRoutes);
+app.use('/api/auth', authRoutes);
 
 // Welcome route
 app.get('/', (req, res) => {
