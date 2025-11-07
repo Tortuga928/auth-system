@@ -66,6 +66,8 @@ const apiService = {
     register: (userData) => api.post('/api/auth/register', userData),
     logout: () => api.post('/api/auth/logout'),
     refreshToken: () => api.post('/api/auth/refresh'),
+    forgotPassword: (data) => api.post('/api/auth/forgot-password', data),
+    resetPassword: (token, data) => api.post(`/api/auth/reset-password/${token}`, data),
   },
 
   // User endpoints (to be implemented)
