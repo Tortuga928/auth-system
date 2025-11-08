@@ -2,7 +2,7 @@
  * OAuth Routes
  *
  * Routes for Google and GitHub OAuth2 authentication
- * Strategies will be implemented in Stories 6.2 and 6.3
+ * Includes callback handling (Story 6.6)
  */
 
 const express = require('express');
@@ -30,7 +30,9 @@ router.get(
  */
 router.get(
   '/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login?error=oauth_failed' }),
+  passport.authenticate('google', { 
+    failureRedirect: `${config.cors.origin}/login?error=oauth_failed` 
+  }),
   (req, res) => {
     try {
       // User is authenticated - generate JWT tokens
@@ -50,30 +52,16 @@ router.get(
         { expiresIn: config.jwt.refreshExpiresIn }
       );
 
-      // TODO: In production, redirect to frontend with token
-      // For now, return JSON response for testing
-      res.json({
-        success: true,
-        message: 'Google OAuth login successful',
-        data: {
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            email_verified: user.email_verified,
-          },
-          accessToken,
-          refreshToken,
-        },
-      });
+      // Redirect to frontend callback handler with tokens
+      const frontendUrl = config.cors.origin || 'http://localhost:3000';
+      const callbackUrl = `${frontendUrl}/oauth/callback?token=${accessToken}&refresh=${refreshToken}`;
+      
+      console.log(`✅ Google OAuth success - redirecting to frontend`);
+      res.redirect(callbackUrl);
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'OAuth authentication failed',
-        details: error.message,
-      });
+      const frontendUrl = config.cors.origin || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login?error=oauth_error`);
     }
   }
 );
@@ -97,7 +85,9 @@ router.get(
  */
 router.get(
   '/github/callback',
-  passport.authenticate('github', { failureRedirect: '/login?error=oauth_failed' }),
+  passport.authenticate('github', { 
+    failureRedirect: `${config.cors.origin}/login?error=oauth_failed` 
+  }),
   (req, res) => {
     try {
       // User is authenticated - generate JWT tokens
@@ -117,30 +107,16 @@ router.get(
         { expiresIn: config.jwt.refreshExpiresIn }
       );
 
-      // TODO: In production, redirect to frontend with token
-      // For now, return JSON response for testing
-      res.json({
-        success: true,
-        message: 'GitHub OAuth login successful',
-        data: {
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            email_verified: user.email_verified,
-          },
-          accessToken,
-          refreshToken,
-        },
-      });
+      // Redirect to frontend callback handler with tokens
+      const frontendUrl = config.cors.origin || 'http://localhost:3000';
+      const callbackUrl = `${frontendUrl}/oauth/callback?token=${accessToken}&refresh=${refreshToken}`;
+      
+      console.log(`✅ GitHub OAuth success - redirecting to frontend`);
+      res.redirect(callbackUrl);
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'OAuth authentication failed',
-        details: error.message,
-      });
+      const frontendUrl = config.cors.origin || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login?error=oauth_error`);
     }
   }
 );
@@ -162,11 +138,11 @@ router.get('/status', (req, res) => {
     data: {
       google: {
         configured: googleConfigured,
-        status: googleConfigured ? 'Ready (Story 6.2)' : 'Not configured',
+        status: googleConfigured ? 'Ready' : 'Not configured',
       },
       github: {
         configured: githubConfigured,
-        status: githubConfigured ? 'Ready (Story 6.3)' : 'Not configured',
+        status: githubConfigured ? 'Ready' : 'Not configured',
       },
       passportInitialized: true,
     },

@@ -10,6 +10,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import './App.css';
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
           </Routes>
         </main>
 
