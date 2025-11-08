@@ -78,4 +78,10 @@ const apiService = {
   },
 };
 
-export default apiService;
+  // OAuth endpoints
+  oauth: {
+    getLinkedProviders: () => api.get('/api/auth/linked-providers'),
+    unlinkProvider: (provider) => api.delete(`/api/auth/unlink/${provider}`),
+  },
+};
+
