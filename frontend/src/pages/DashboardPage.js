@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import LinkedProviders from '../components/LinkedProviders';
 
 function DashboardPage() {
   return (
@@ -33,6 +34,10 @@ function DashboardPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <LinkedProviders />
       </div>
     </div>
   );
