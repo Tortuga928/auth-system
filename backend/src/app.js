@@ -15,6 +15,7 @@ const { initializePassport } = require('./config/passport');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const oauthRoutes = require('./routes/oauth');
+const linkedProvidersRoutes = require('./routes/linkedProviders');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -49,6 +50,7 @@ initializePassport(app);
 // API Routes
 app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', linkedProvidersRoutes);
 app.use('/api/oauth', oauthRoutes);
 
 // Test routes (development only)

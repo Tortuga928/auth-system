@@ -2,13 +2,14 @@
  * Passport.js Configuration
  *
  * Configures Passport.js for OAuth2 authentication
- * Includes Google & GitHub OAuth2 strategies (Stories 6.2, 6.3)
+ * Includes Google & GitHub OAuth2 strategies (Stories 6.2, 6.3, 6.4)
  */
 
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const User = require('../models/User');
+const OAuthProvider = require('../models/OAuthProvider');
 const config = require('./index');
 
 /**
@@ -57,16 +58,32 @@ if (config.oauth.google.clientID && config.oauth.google.clientSecret) {
             return done(new Error('No email found in Google profile'), null);
           }
 
-          // Check if user already exists with this email
-          let user = await User.findByEmail(email);
+          // STEP 1: Check if this Google account is already linked to a user
+          const oauthLink = await OAuthProvider.findByProviderAndId('google', googleId);
 
-          if (user) {
-            // User exists - could update OAuth info here if needed
-            console.log(`✅ Google OAuth: Existing user logged in (${email})`);
+          if (oauthLink) {
+            // OAuth account already linked - get the user
+            const user = await User.findById(oauthLink.user_id);
+            console.log(`✅ Google OAuth: Linked account logged in (${email})`);
             return done(null, user);
           }
 
-          // Create new user from Google profile
+          // STEP 2: Check if user with this email already exists
+          let user = await User.findByEmail(email);
+
+          if (user) {
+            // User exists - link this Google account to the user
+            await OAuthProvider.upsert({
+              user_id: user.id,
+              provider: 'google',
+              provider_user_id: googleId,
+              provider_email: email,
+            });
+            console.log(`✅ Google OAuth: Account linked to existing user (${email})`);
+            return done(null, user);
+          }
+
+          // STEP 3: No user exists - create new user and link Google account
           const username = email.split('@')[0] + '_google_' + Date.now();
           const randomPassword = require('crypto').randomBytes(32).toString('hex');
           const bcrypt = require('bcrypt');
@@ -82,7 +99,15 @@ if (config.oauth.google.clientID && config.oauth.google.clientSecret) {
           // Mark email as verified (Google verified it)
           await User.update(user.id, { email_verified: true });
 
-          console.log(`✅ Google OAuth: New user created (${email})`);
+          // Link Google account to new user
+          await OAuthProvider.upsert({
+            user_id: user.id,
+            provider: 'google',
+            provider_user_id: googleId,
+            provider_email: email,
+          });
+
+          console.log(`✅ Google OAuth: New user created and linked (${email})`);
           return done(null, user);
         } catch (error) {
           console.error('❌ Google OAuth error:', error);
@@ -118,16 +143,32 @@ if (config.oauth.github.clientID && config.oauth.github.clientSecret) {
             return done(new Error('No email found in GitHub profile'), null);
           }
 
-          // Check if user already exists with this email
-          let user = await User.findByEmail(email);
+          // STEP 1: Check if this GitHub account is already linked to a user
+          const oauthLink = await OAuthProvider.findByProviderAndId('github', githubId);
 
-          if (user) {
-            // User exists - could update OAuth info here if needed
-            console.log(`✅ GitHub OAuth: Existing user logged in (${email})`);
+          if (oauthLink) {
+            // OAuth account already linked - get the user
+            const user = await User.findById(oauthLink.user_id);
+            console.log(`✅ GitHub OAuth: Linked account logged in (${email})`);
             return done(null, user);
           }
 
-          // Create new user from GitHub profile
+          // STEP 2: Check if user with this email already exists
+          let user = await User.findByEmail(email);
+
+          if (user) {
+            // User exists - link this GitHub account to the user
+            await OAuthProvider.upsert({
+              user_id: user.id,
+              provider: 'github',
+              provider_user_id: githubId,
+              provider_email: email,
+            });
+            console.log(`✅ GitHub OAuth: Account linked to existing user (${email})`);
+            return done(null, user);
+          }
+
+          // STEP 3: No user exists - create new user and link GitHub account
           const username = (email.split('@')[0] || profile.username) + '_github_' + Date.now();
           const randomPassword = require('crypto').randomBytes(32).toString('hex');
           const bcrypt = require('bcrypt');
@@ -143,7 +184,15 @@ if (config.oauth.github.clientID && config.oauth.github.clientSecret) {
           // Mark email as verified (GitHub verified it)
           await User.update(user.id, { email_verified: true });
 
-          console.log(`✅ GitHub OAuth: New user created (${email})`);
+          // Link GitHub account to new user
+          await OAuthProvider.upsert({
+            user_id: user.id,
+            provider: 'github',
+            provider_user_id: githubId,
+            provider_email: email,
+          });
+
+          console.log(`✅ GitHub OAuth: New user created and linked (${email})`);
           return done(null, user);
         } catch (error) {
           console.error('❌ GitHub OAuth error:', error);
