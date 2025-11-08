@@ -22,6 +22,28 @@
 
 ---
 
+## 🔄 Session Recovery
+
+**⚠️ IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
+
+**Current Active Work**: Phase 7 - Multi-Factor Authentication (Story 7.3)
+
+📄 **Session Recovery Document**: [SESSION_RECOVERY_PHASE7.md](./SESSION_RECOVERY_PHASE7.md)
+
+This document contains:
+- Complete status of current Story 7.3 work (90% complete)
+- Exact manual fix needed to complete Story 7.3
+- Step-by-step instructions to resume work
+- Test verification procedure
+- Remaining stories in Phase 7
+
+**Before starting any new work on Phase 7**, read SESSION_RECOVERY_PHASE7.md to understand:
+1. What's already been completed
+2. What's currently in progress
+3. The one remaining task to finish Story 7.3
+
+---
+
 ## ⚠️ CRITICAL: Command Compatibility Guidelines
 
 ### Environment Context
