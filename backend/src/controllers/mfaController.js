@@ -8,6 +8,8 @@ const MFASecret = require('../models/MFASecret');
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const { verifyMFAChallengeToken, generateTokenPair } = require('../utils/jwt');
+const crypto = require('crypto');
+const { sendMFAResetEmail } = require('../services/emailService');
 
 /**
  * POST /api/auth/mfa/setup
@@ -584,6 +586,291 @@ const verifyBackupCode = async (req, res) => {
   }
 };
 
+const getMFAStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const mfaSecret = await MFASecret.findByUserId(userId);
+
+    if (!mfaSecret) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          mfaEnabled: false,
+          enabledAt: null,
+          lastUsedAt: null,
+          backupCodesRemaining: 0,
+        },
+      });
+    }
+
+    // Count remaining backup codes
+    const backupCodes = typeof mfaSecret.backup_codes === 'string'
+      ? JSON.parse(mfaSecret.backup_codes)
+      : mfaSecret.backup_codes;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        mfaEnabled: mfaSecret.enabled,
+        enabledAt: mfaSecret.enabled_at,
+        lastUsedAt: mfaSecret.last_used_at,
+        backupCodesRemaining: backupCodes ? backupCodes.length : 0,
+        isLocked: mfaSecret.locked_until && new Date(mfaSecret.locked_until) > new Date(),
+        lockedUntil: mfaSecret.locked_until,
+        failedAttempts: mfaSecret.failed_attempts,
+      },
+    });
+  } catch (error) {
+    console.error('Get MFA status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get MFA status',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/auth/mfa/reset-request
+ *
+ * Request MFA reset via email
+ * User must be logged in to request MFA reset
+ *
+ * @body {string} password - User's password for verification
+ * @returns {Object} Success message
+ */
+const requestMFAReset = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+    const { password } = req.body;
+
+    // Validate input
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password required',
+        error: 'Please provide your password to request MFA reset',
+      });
+    }
+
+    // Get user with password hash
+    const user = await User.findByEmail(userEmail);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify password
+    const bcrypt = require('bcrypt');
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid password',
+        error: 'The password you entered is incorrect',
+      });
+    }
+
+    // Check if MFA is enabled
+    const mfaSecret = await MFASecret.findByUserId(userId);
+
+    if (!mfaSecret || !mfaSecret.enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA is not enabled',
+        error: 'You cannot reset MFA if it is not enabled',
+      });
+    }
+
+    // Generate reset token (valid for 1 hour)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Store reset token in database
+    // For now, we'll use the User model to store this temporarily
+    // In production, you might want a separate tokens table
+    await User.updateMFAResetToken(userId, resetToken, resetTokenExpires);
+
+    // Send reset email
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/mfa-reset/${resetToken}`;
+    await sendMFAResetEmail(userEmail, user.username, resetUrl);
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA reset email sent',
+      data: {
+        message: 'Check your email for instructions to reset your MFA',
+        expiresIn: '1 hour',
+      },
+    });
+  } catch (error) {
+    console.error('Request MFA reset error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to request MFA reset',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/auth/mfa/reset-confirm
+ *
+ * Confirm MFA reset with token from email
+ * Public endpoint (no authentication required)
+ *
+ * @body {string} token - Reset token from email
+ * @returns {Object} Success message
+ */
+const confirmMFAReset = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    // Validate input
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token required',
+        error: 'Please provide the reset token from the email',
+      });
+    }
+
+    // Find user with this reset token
+    const user = await User.findByMFAResetToken(token);
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token',
+        error: 'This reset link is invalid or has expired',
+      });
+    }
+
+    // Check if token has expired
+    if (new Date() > new Date(user.mfa_reset_token_expires)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token expired',
+        error: 'This reset link has expired. Please request a new one.',
+      });
+    }
+
+    // Disable MFA
+    await MFASecret.disable(user.id);
+
+    // Clear reset token
+    await User.clearMFAResetToken(user.id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA disabled successfully',
+      data: {
+        message: 'Your MFA has been reset. You can set it up again from your account settings.',
+      },
+    });
+  } catch (error) {
+    console.error('Confirm MFA reset error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset MFA',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/admin/mfa/unlock/:userId
+ *
+ * Admin endpoint to unlock a user's MFA account
+ * Requires admin authentication
+ *
+ * @param {number} userId - User ID to unlock
+ * @returns {Object} Success message
+ */
+const unlockMFAAccount = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user.id;
+    const adminRole = req.user.role;
+
+    // Check if user is admin
+    if (adminRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden',
+        error: 'Only administrators can unlock MFA accounts',
+      });
+    }
+
+    // Validate userId
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID',
+        error: 'Please provide a valid user ID',
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findById(parseInt(userId));
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        error: `No user found with ID ${userId}`,
+      });
+    }
+
+    // Check if MFA is enabled
+    const mfaSecret = await MFASecret.findByUserId(parseInt(userId));
+
+    if (!mfaSecret) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA not set up',
+        error: 'This user does not have MFA enabled',
+      });
+    }
+
+    // Unlock account (reset failed attempts and locked_until)
+    await MFASecret.unlockAccount(parseInt(userId));
+
+    // Log admin action
+    console.log(`Admin ${adminId} (${req.user.email}) unlocked MFA for user ${userId} (${user.email})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA account unlocked successfully',
+      data: {
+        userId: parseInt(userId),
+        email: user.email,
+        unlockedBy: adminId,
+        unlockedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Unlock MFA account error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to unlock MFA account',
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  getMFAStatus,
+  requestMFAReset,
+  confirmMFAReset,
+  unlockMFAAccount,
+};
 module.exports = {
   setupMFA,
   enableMFA,
@@ -591,5 +878,9 @@ module.exports = {
   regenerateBackupCodes,
   verifyTOTP,
   verifyBackupCode,
+  getMFAStatus,
+  requestMFAReset,
+  confirmMFAReset,
+  unlockMFAAccount,
 };
 

@@ -51,7 +51,8 @@ class User {
    */
   static async findByEmail(email) {
     const query = `
-      SELECT id, username, email, password_hash, role, email_verified, created_at, updated_at
+      SELECT id, username, email, password_hash, role, email_verified,
+             mfa_reset_token, mfa_reset_token_expires, created_at, updated_at
       FROM users
       WHERE email = $1
     `;
@@ -235,6 +236,59 @@ class User {
     const query = 'SELECT COUNT(*) as count FROM users';
     const result = await db.query(query);
     return parseInt(result.rows[0].count, 10);
+  }
+
+  /**
+   * Update MFA reset token
+   *
+   * @param {number} userId - User ID
+   * @param {string} token - Reset token
+   * @param {Date} expires - Token expiration date
+   * @returns {Promise<Object>} Updated user
+   */
+  static async updateMFAResetToken(userId, token, expires) {
+    const query = `
+      UPDATE users
+      SET mfa_reset_token = $2, mfa_reset_token_expires = $3, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, username, email
+    `;
+    const result = await db.query(query, [userId, token, expires]);
+    return result.rows[0];
+  }
+
+  /**
+   * Find user by MFA reset token
+   *
+   * @param {string} token - Reset token
+   * @returns {Promise<Object|null>} User object or null
+   */
+  static async findByMFAResetToken(token) {
+    const query = `
+      SELECT id, username, email, password_hash, role, email_verified,
+             mfa_reset_token, mfa_reset_token_expires, created_at, updated_at
+      FROM users
+      WHERE mfa_reset_token = $1
+    `;
+    const result = await db.query(query, [token]);
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Clear MFA reset token
+   *
+   * @param {number} userId - User ID
+   * @returns {Promise<boolean>} True if cleared
+   */
+  static async clearMFAResetToken(userId) {
+    const query = `
+      UPDATE users
+      SET mfa_reset_token = NULL, mfa_reset_token_expires = NULL, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `;
+    const result = await db.query(query, [userId]);
+    return result.rows.length > 0;
   }
 }
 
