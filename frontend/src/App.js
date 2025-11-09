@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import MFASettingsPage from './pages/MFASettingsPage';
 import './App.css';
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
               <Link to="/login" className="nav-link">Login</Link>
               <Link to="/register" className="nav-link">Register</Link>
               <Link to="/dashboard" className="nav-link">Dashboard</Link>
+              <Link to="/mfa-settings" className="nav-link">2FA Settings</Link>
             </div>
           </div>
         </nav>
@@ -40,6 +42,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+            <Route path="/mfa-settings" element={<MFASettingsPage />} />
           </Routes>
         </main>
 
