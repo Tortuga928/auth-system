@@ -395,6 +395,88 @@ async function sendTestEmail(to) {
   return sendEmail({ to, subject, text, html });
 }
 
+
+/**
+ * Send MFA reset email
+ *
+ * @param {string} to - Recipient email address
+ * @param {string} username - User's username
+ * @param {string} resetUrl - MFA reset link URL
+ * @returns {Promise<Object>} Send result
+ */
+async function sendMFAResetEmail(to, username, resetUrl) {
+  const subject = 'Reset Your Two-Factor Authentication';
+
+  const text = `
+Hello ${username},
+
+We received a request to reset your two-factor authentication (MFA) settings. Click the link below to reset your MFA:
+
+${resetUrl}
+
+This link will expire in 1 hour.
+
+If you didn't request an MFA reset, please ignore this email and your MFA settings will remain unchanged.
+
+Best regards,
+Auth System Team
+  `.trim();
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 30px;
+          }
+          .button {
+            display: inline-block;
+            background-color: #ffc107;
+            color: #000;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 4px;
+            margin: 20px 0;
+          }
+          .footer {
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>MFA Reset Request</h2>
+          <p>Hello ${username},</p>
+          <p>We received a request to reset your two-factor authentication settings. Click the button below to reset your MFA:</p>
+          <p style="text-align: center;">
+            <a href="${resetUrl}" class="button">Reset MFA</a>
+          </p>
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #ffc107;">${resetUrl}</p>
+          <p class="footer">
+            This link will expire in 1 hour.<br>
+            If you didn't request an MFA reset, please ignore this email.
+          </p>
+        </div>
+      </body>
+    </html>
+  `.trim();
+
+  return sendEmail({ to, subject, text, html });
+}
 module.exports = {
   getTransporter,
   sendEmail,
@@ -402,4 +484,5 @@ module.exports = {
   sendPasswordResetEmail,
   sendPasswordResetConfirmationEmail,
   sendTestEmail,
+  sendMFAResetEmail,
 };

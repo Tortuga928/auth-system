@@ -29,7 +29,7 @@ class MFASecret {
    * @returns {string} Encrypted text with IV and auth tag (format: iv:authTag:encrypted)
    */
   static encrypt(text) {
-    const iv = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, ENCRYPTION_KEY, iv);
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -373,7 +373,7 @@ class MFASecret {
       throw new Error('MFA secret not found');
     }
 
-    const hashedBackupCodes = JSON.parse(mfaSecret.backup_codes);
+    const hashedBackupCodes = typeof mfaSecret.backup_codes === "string" ? JSON.parse(mfaSecret.backup_codes) : mfaSecret.backup_codes;
     const hashedUsedCode = this.hashBackupCode(usedCode);
 
     // Remove the used code
@@ -400,6 +400,50 @@ class MFASecret {
     const query = 'DELETE FROM mfa_secrets WHERE user_id = $1';
     const result = await db.query(query, [userId]);
     return result.rowCount > 0;
+  }
+
+  /**
+   * Unlock MFA account (admin function)
+   *
+   * Resets failed attempts and clears locked_until
+   *
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} Updated MFA secret
+   */
+  /**
+   * Record a failed MFA attempt
+   * Locks the account for 15 minutes after 5 failed attempts
+   *
+   * @param {number} userId - User ID
+   * @returns {Promise<Object>} Updated MFA secret record
+   */
+  static async recordFailedAttempt(userId) {
+    const query = `
+      UPDATE mfa_secrets
+      SET failed_attempts = failed_attempts + 1,
+          locked_until = CASE
+            WHEN failed_attempts + 1 >= 5 THEN NOW() + INTERVAL '15 minutes'
+            ELSE locked_until
+          END,
+          updated_at = NOW()
+      WHERE user_id = $1
+      RETURNING id, user_id, enabled, failed_attempts, locked_until
+    `;
+    
+    const result = await db.query(query, [userId]);
+    return result.rows[0];
+  }
+
+  static async unlockAccount(userId) {
+    const query = `
+      UPDATE mfa_secrets
+      SET failed_attempts = 0, locked_until = NULL, updated_at = NOW()
+      WHERE user_id = $1
+      RETURNING id, user_id, enabled, failed_attempts, locked_until
+    `;
+
+    const result = await db.query(query, [userId]);
+    return result.rows[0];
   }
 }
 
