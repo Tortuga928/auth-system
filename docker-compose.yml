@@ -53,6 +53,7 @@ services:
       JWT_EXPIRES_IN: 1h
       REFRESH_TOKEN_EXPIRES_IN: 7d
       FRONTEND_URL: http://localhost:3000
+      MFA_ENCRYPTION_KEY: ec818d101dbb9a4c8b30c1658ff2ffeed0e8bec1c1cb50f23de3416152977ae8
     ports:
       - "5000:5000"
     volumes:

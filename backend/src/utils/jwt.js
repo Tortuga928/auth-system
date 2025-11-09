@@ -166,6 +166,47 @@ function decodeToken(token) {
   }
 }
 
+
+/**
+ * Generates an MFA challenge token
+ *
+ * MFA challenge tokens are very short-lived (5 minutes) and only allow
+ * access to MFA verification endpoints. Used during login when MFA is required.
+ *
+ * @param {Object} user - User object
+ * @param {number} user.id - User ID
+ * @param {string} user.email - User email
+ * @returns {string} - JWT MFA challenge token
+ */
+function generateMFAChallengeToken(user) {
+  if (!user || !user.id) {
+    throw new Error('User ID is required to generate MFA challenge token');
+  }
+
+  const payload = {
+    id: user.id,
+    email: user.email,
+    type: 'mfa-challenge',
+  };
+
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: '5m', // Short-lived: 5 minutes to complete MFA
+    issuer: 'auth-system',
+    audience: 'auth-system-api',
+  });
+}
+
+/**
+ * Verifies an MFA challenge token
+ *
+ * @param {string} token - JWT MFA challenge token to verify
+ * @returns {Object} - Decoded token payload
+ * @throws {Error} - If token is invalid or not an MFA challenge token
+ */
+function verifyMFAChallengeToken(token) {
+  return verifyToken(token, 'mfa-challenge');
+}
+
 /**
  * Extracts the token from an Authorization header
  *
@@ -195,6 +236,8 @@ module.exports = {
   verifyAccessToken,
   verifyRefreshToken,
   decodeToken,
+  generateMFAChallengeToken,
+  verifyMFAChallengeToken,
   extractTokenFromHeader,
   // Export for testing
   JWT_SECRET,

@@ -5,8 +5,9 @@
  */
 
 const User = require('../models/User');
+const MFASecret = require('../models/MFASecret');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
-const { generateTokenPair, verifyRefreshToken, generateAccessToken } = require('../utils/jwt');
+const { generateTokenPair, verifyRefreshToken, generateAccessToken, generateMFAChallengeToken } = require('../utils/jwt');
 const tokenService = require('../utils/tokenService');
 const emailService = require('../services/emailService');
 
@@ -187,6 +188,32 @@ const login = async (req, res, next) => {
       });
     }
 
+    // Check if MFA is enabled
+    const mfaSecret = await MFASecret.findByUserId(user.id);
+
+    if (mfaSecret && mfaSecret.enabled) {
+      // MFA is enabled - return MFA challenge token
+      const mfaChallengeToken = generateMFAChallengeToken({
+        id: user.id,
+        email: user.email,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'MFA verification required',
+        data: {
+          mfaRequired: true,
+          mfaChallengeToken,
+          user: {
+            id: user.id,
+            email: user.email,
+          },
+        },
+      });
+    }
+
+    // MFA not enabled - proceed with normal login
+
     // Generate tokens
     const tokens = generateTokenPair({
       id: user.id,
@@ -199,6 +226,7 @@ const login = async (req, res, next) => {
       success: true,
       message: 'Login successful',
       data: {
+        mfaRequired: false,
         user: {
           id: user.id,
           username: user.username,

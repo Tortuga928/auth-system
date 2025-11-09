@@ -29,7 +29,7 @@ class MFASecret {
    * @returns {string} Encrypted text with IV and auth tag (format: iv:authTag:encrypted)
    */
   static encrypt(text) {
-    const iv = crypto.randomBytes(16);
+    const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, ENCRYPTION_KEY, iv);
 
     let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -373,7 +373,7 @@ class MFASecret {
       throw new Error('MFA secret not found');
     }
 
-    const hashedBackupCodes = JSON.parse(mfaSecret.backup_codes);
+    const hashedBackupCodes = typeof mfaSecret.backup_codes === "string" ? JSON.parse(mfaSecret.backup_codes) : mfaSecret.backup_codes;
     const hashedUsedCode = this.hashBackupCode(usedCode);
 
     // Remove the used code

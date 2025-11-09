@@ -7,6 +7,7 @@
 const MFASecret = require('../models/MFASecret');
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const { verifyMFAChallengeToken, generateTokenPair } = require('../utils/jwt');
 
 /**
  * POST /api/auth/mfa/setup
@@ -320,9 +321,275 @@ const regenerateBackupCodes = async (req, res) => {
   }
 };
 
+
+/**
+ * POST /api/auth/mfa/verify
+ *
+ * Verify TOTP token during login
+ * Requires MFA challenge token (from login response)
+ *
+ * @body {string} token - 6-digit TOTP token from authenticator app
+ * @body {string} mfaChallengeToken - MFA challenge token from login
+ * @returns {Object} Access and refresh tokens
+ */
+const verifyTOTP = async (req, res) => {
+  try {
+    const { token, mfaChallengeToken } = req.body;
+
+    // Validate input
+    if (!token || !/^\d{6}$/.test(token)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid token format',
+        error: 'Token must be a 6-digit number',
+      });
+    }
+
+    if (!mfaChallengeToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA challenge token required',
+        error: 'Please provide the MFA challenge token from login',
+      });
+    }
+
+    // Verify MFA challenge token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaChallengeToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA challenge token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Get MFA secret
+    const mfaSecret = await MFASecret.findByUserId(userId);
+
+    if (!mfaSecret || !mfaSecret.enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA not enabled',
+      });
+    }
+
+    // Check if account is locked
+    const isLocked = await MFASecret.isLocked(userId);
+    if (isLocked) {
+      return res.status(429).json({
+        success: false,
+        message: 'Account temporarily locked',
+        error: 'Too many failed MFA attempts. Please try again later.',
+      });
+    }
+
+    // Verify TOTP token
+    const isValid = MFASecret.verifyTOTP(token, mfaSecret.secret);
+
+    if (!isValid) {
+      // Increment failed attempts
+      await MFASecret.incrementFailedAttempts(userId);
+
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid verification code',
+        error: 'The code you entered is incorrect or expired',
+      });
+    }
+
+    // Success - record verification and generate tokens
+    await MFASecret.recordSuccessfulVerification(userId);
+
+    // Get user details
+    console.log("DEBUG: userId =", userId);
+    const user = await User.findById(userId);
+
+    console.log("DEBUG: user =", user);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Generate full access tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA verification successful',
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          email_verified: user.email_verified,
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('TOTP verification error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'MFA verification failed',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/auth/mfa/verify-backup
+ *
+ * Verify backup code during login
+ * Requires MFA challenge token (from login response)
+ *
+ * @body {string} backupCode - Backup recovery code
+ * @body {string} mfaChallengeToken - MFA challenge token from login
+ * @returns {Object} Access and refresh tokens
+ */
+const verifyBackupCode = async (req, res) => {
+  try {
+    const { backupCode, mfaChallengeToken } = req.body;
+
+    // Validate input
+    if (!backupCode || !/^[A-F0-9]{4}-[A-F0-9]{4}$/.test(backupCode.toUpperCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid backup code format',
+        error: 'Backup code must be in format XXXX-XXXX',
+      });
+    }
+
+    if (!mfaChallengeToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA challenge token required',
+        error: 'Please provide the MFA challenge token from login',
+      });
+    }
+
+    // Verify MFA challenge token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaChallengeToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA challenge token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Get MFA secret
+    const mfaSecret = await MFASecret.findByUserId(userId);
+
+    if (!mfaSecret || !mfaSecret.enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA not enabled',
+      });
+    }
+
+    // Check if account is locked
+    const isLocked = await MFASecret.isLocked(userId);
+    if (isLocked) {
+      return res.status(429).json({
+        success: false,
+        message: 'Account temporarily locked',
+        error: 'Too many failed MFA attempts. Please try again later.',
+      });
+    }
+
+    // Verify backup code
+    const hashedBackupCodes = typeof mfaSecret.backup_codes === "string" ? JSON.parse(mfaSecret.backup_codes) : mfaSecret.backup_codes;
+    const isValid = MFASecret.verifyBackupCode(backupCode.toUpperCase(), hashedBackupCodes);
+
+    if (!isValid) {
+      // Increment failed attempts
+      await MFASecret.incrementFailedAttempts(userId);
+
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid backup code',
+        error: 'The backup code you entered is incorrect or already used',
+      });
+    }
+
+    // Success - remove used backup code, record verification, and generate tokens
+    await MFASecret.removeUsedBackupCode(userId, backupCode.toUpperCase());
+    await MFASecret.recordSuccessfulVerification(userId);
+
+    // Get user details
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Generate full access tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Count remaining backup codes
+    const updatedMFASecret = await MFASecret.findByUserId(userId);
+    const backupCodesArray = typeof updatedMFASecret.backup_codes === "string" ? JSON.parse(updatedMFASecret.backup_codes) : updatedMFASecret.backup_codes;
+    const remainingCodes = backupCodesArray.length;
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA verification successful',
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          email_verified: user.email_verified,
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+        warning: remainingCodes < 3 ? `Only ${remainingCodes} backup codes remaining. Consider regenerating.` : null,
+      },
+    });
+  } catch (error) {
+    console.error('Backup code verification error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'MFA verification failed',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   setupMFA,
   enableMFA,
   disableMFA,
   regenerateBackupCodes,
+  verifyTOTP,
+  verifyBackupCode,
 };
+
