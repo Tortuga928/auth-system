@@ -68,6 +68,8 @@ const apiService = {
     refreshToken: () => api.post('/api/auth/refresh'),
     forgotPassword: (data) => api.post('/api/auth/forgot-password', data),
     resetPassword: (token, data) => api.post(`/api/auth/reset-password/${token}`, data),
+    verifyMFA: (data) => api.post('/api/auth/mfa/verify', data),
+    verifyBackupCode: (data) => api.post('/api/auth/mfa/verify-backup', data),
   },
 
   // User endpoints (to be implemented)
@@ -76,7 +78,6 @@ const apiService = {
     updateProfile: (data) => api.put('/api/user/profile', data),
     changePassword: (data) => api.post('/api/user/change-password', data),
   },
-};
 
   // OAuth endpoints
   oauth: {
@@ -85,3 +86,5 @@ const apiService = {
   },
 };
 
+export default apiService;
+export { api }; // Export axios instance for direct use in hooks

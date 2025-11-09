@@ -4,9 +4,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 
 export const useMFA = () => {
+  console.log('🎯 [useMFA] Hook initialized!');
+
   const [mfaStatus, setMfaStatus] = useState({
     enabled: false,
     backupCodesRemaining: 0,
@@ -18,17 +20,32 @@ export const useMFA = () => {
    * Fetch current MFA status
    */
   const fetchMFAStatus = useCallback(async () => {
+    console.log('🔍 [useMFA] fetchMFAStatus called');
+    console.log('🔍 [useMFA] Auth token:', localStorage.getItem('authToken')?.substring(0, 20) + '...');
+
     try {
       setMfaStatus(prev => ({ ...prev, loading: true, error: null }));
+      console.log('🔍 [useMFA] Making API call to /api/auth/mfa/status');
+
       const response = await api.get('/api/auth/mfa/status');
 
+      console.log('✅ [useMFA] API Response:', response.data);
+
       setMfaStatus({
-        enabled: response.data.data.enabled,
+        enabled: response.data.data.mfaEnabled,
         backupCodesRemaining: response.data.data.backupCodesRemaining || 0,
         loading: false,
         error: null,
       });
+
+      console.log('✅ [useMFA] State updated successfully');
     } catch (error) {
+      console.error('❌ [useMFA] Error caught:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+
       setMfaStatus(prev => ({
         ...prev,
         loading: false,
@@ -106,9 +123,9 @@ export const useMFA = () => {
   /**
    * Regenerate backup codes
    */
-  const regenerateBackupCodes = async () => {
+  const regenerateBackupCodes = async (password) => {
     try {
-      const response = await api.post('/api/auth/mfa/backup-codes/regenerate');
+      const response = await api.post('/api/auth/mfa/backup-codes/regenerate', { password });
 
       // Update local state
       await fetchMFAStatus();
@@ -180,6 +197,7 @@ export const useMFA = () => {
 
   // Fetch MFA status on mount
   useEffect(() => {
+    console.log('🔄 [useMFA] useEffect triggered - calling fetchMFAStatus');
     fetchMFAStatus();
   }, [fetchMFAStatus]);
 

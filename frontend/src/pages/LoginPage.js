@@ -3,15 +3,105 @@
  */
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import apiService from '../services/api';
 
 function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaChallengeToken, setMfaChallengeToken] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implement login logic
-    console.log('Login attempt:', { email, password });
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await apiService.auth.login({ email, password });
+
+      // Check if MFA is required
+      if (response.data.data.mfaRequired) {
+        setMfaRequired(true);
+        setMfaChallengeToken(response.data.data.mfaChallengeToken);
+        setLoading(false);
+        return;
+      }
+
+      // Regular login success
+      localStorage.setItem('authToken', response.data.data.tokens.accessToken);
+      localStorage.setItem('refreshToken', response.data.data.tokens.refreshToken);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || 'Login failed. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    console.log('🔐 [LoginPage] Starting MFA verification...');
+    console.log('🔐 [LoginPage] MFA code:', mfaCode);
+    console.log('🔐 [LoginPage] Challenge token:', mfaChallengeToken?.substring(0, 20) + '...');
+
+    try {
+      let response;
+
+      // Check if it's a backup code (contains dash or is longer than 6 chars)
+      const isBackupCode = mfaCode.includes('-') || mfaCode.length > 6;
+
+      console.log('🔐 [LoginPage] Is backup code:', isBackupCode);
+
+      if (isBackupCode) {
+        console.log('🔐 [LoginPage] Calling verifyBackupCode endpoint...');
+        // Use backup code endpoint
+        response = await apiService.auth.verifyBackupCode({
+          mfaChallengeToken,
+          backupCode: mfaCode.toUpperCase(),
+        });
+      } else {
+        console.log('🔐 [LoginPage] Calling verifyMFA endpoint...');
+        // Use TOTP endpoint
+        response = await apiService.auth.verifyMFA({
+          mfaChallengeToken,
+          token: mfaCode,
+        });
+      }
+
+      console.log('✅ [LoginPage] MFA verification successful!');
+      console.log('✅ [LoginPage] Response data:', response.data);
+
+      const accessToken = response.data.data.tokens.accessToken;
+      const refreshToken = response.data.data.tokens.refreshToken;
+
+      console.log('💾 [LoginPage] Storing tokens in localStorage...');
+      console.log('💾 [LoginPage] Access token (first 30 chars):', accessToken?.substring(0, 30) + '...');
+
+      localStorage.setItem('authToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+
+      console.log('✅ [LoginPage] Tokens stored successfully');
+      console.log('🚀 [LoginPage] Navigating to /dashboard...');
+
+      navigate('/dashboard');
+
+      console.log('✅ [LoginPage] Navigation called');
+    } catch (err) {
+      console.error('❌ [LoginPage] MFA verification failed:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
+      setError(err.response?.data?.message || err.response?.data?.error || 'Invalid MFA code. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -26,10 +116,72 @@ function LoginPage() {
     window.location.href = `${apiUrl}/api/oauth/github`;
   };
 
+  // Show MFA form if MFA is required
+  if (mfaRequired) {
+    return (
+      <div className="container">
+        <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
+          <h1 className="text-center">Two-Factor Authentication</h1>
+          <p className="text-center" style={{ color: '#666' }}>
+            Enter the 6-digit code from your authenticator app or use a backup code
+          </p>
+
+          {error && (
+            <div className="alert alert-danger" role="alert">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleMfaSubmit} className="mt-3">
+            <div className="form-group">
+              <label className="form-label" htmlFor="mfaCode">Verification Code</label>
+              <input
+                type="text"
+                id="mfaCode"
+                className="form-control"
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                placeholder="Enter 6-digit code or backup code"
+                required
+                autoFocus
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              disabled={loading}
+            >
+              {loading ? 'Verifying...' : 'Verify'}
+            </button>
+          </form>
+
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              className="btn btn-link"
+              onClick={() => setMfaRequired(false)}
+            >
+              ← Back to login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular login form
   return (
     <div className="container">
       <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
         <h1 className="text-center">Login</h1>
+
+        {error && (
+          <div className="alert alert-danger" role="alert">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-3">
           <div className="form-group">
@@ -56,8 +208,13 @@ function LoginPage() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-            Login
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+            disabled={loading}
+          >
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 

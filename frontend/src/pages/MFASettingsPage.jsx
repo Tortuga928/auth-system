@@ -8,6 +8,8 @@ import useMFA from '../hooks/useMFA';
 import BackupCodesDisplay from '../components/BackupCodesDisplay';
 
 const MFASettingsPage = () => {
+  console.log('📄 [MFASettingsPage] Component rendering...');
+
   const {
     mfaEnabled,
     backupCodesRemaining,
@@ -17,6 +19,13 @@ const MFASettingsPage = () => {
     disableMFA,
     regenerateBackupCodes,
   } = useMFA();
+
+  console.log('📄 [MFASettingsPage] Hook returned values:', {
+    mfaEnabled,
+    backupCodesRemaining,
+    loading,
+    error
+  });
 
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [backupCodes, setBackupCodes] = useState([]);
@@ -62,13 +71,14 @@ const MFASettingsPage = () => {
    * TODO: In production, may want to require password verification
    */
   const handleViewBackupCodes = async () => {
-    alert('For security, backup codes are only shown once during setup.\nUse "Regenerate Backup Codes" to get new codes.');
+    alert('For security, backup codes are only shown once during setup.\\nUse "Regenerate Backup Codes" to get new codes.');
   };
 
   /**
    * Handle Regenerate Backup Codes
    */
   const handleRegenerateBackupCodes = async () => {
+    // eslint-disable-next-line no-restricted-globals
     if (!confirm('This will invalidate your old backup codes. Continue?')) {
       return;
     }
@@ -77,7 +87,10 @@ const MFASettingsPage = () => {
     setActionError('');
     setActionSuccess('');
 
-    const result = await regenerateBackupCodes();
+    const password = prompt('Enter your password to regenerate backup codes:');
+    if (!password) return;
+
+    const result = await regenerateBackupCodes(password);
 
     if (result.success) {
       setBackupCodes(result.data.backupCodes);
@@ -99,6 +112,7 @@ const MFASettingsPage = () => {
   };
 
   if (loading) {
+    console.log('📄 [MFASettingsPage] Rendering loading state...');
     return (
       <div className="mfa-settings-page">
         <div className="container">
@@ -107,6 +121,8 @@ const MFASettingsPage = () => {
       </div>
     );
   }
+
+  console.log('📄 [MFASettingsPage] Rendering main UI...');
 
   return (
     <div className="mfa-settings-page">
