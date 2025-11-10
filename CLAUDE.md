@@ -26,20 +26,19 @@
 
 **⚠️ IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
 
-**Current Active Work**: Phase 7-Beta - Beta Branch Deployment & Testing (COMPLETE)
+**Current Active Work**: Phase 8 - User Dashboard & Profile Management (IN PROGRESS)
 
 📄 **Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
 📄 **Beta Environment**: https://auth-frontend-beta.onrender.com
 
 **Current Status** (November 10, 2025):
 - ✅ **Phase 7 Complete** - All MFA features (Stories 7.1-7.5) - 100% tested in beta
-- ✅ **Beta Branch Created** - Deployed to Render.com with 4 services
-- ✅ **Beta Testing Complete** - MFA setup, login, disable all verified
-- ✅ **Issues Found & Fixed** - Frontend API URL, database migrations, seed data
-- ✅ **Staging Synced** - All beta fixes merged back to staging
-- 📦 **Production Ready** - Waiting for Phase 8-12 completion
+- ✅ **Phase 7-Beta Complete** - Deployed to Render.com, tested, and synced back
+- ✅ **Story 8.1 Complete** - User Dashboard Page with profile display and activity log
+- ✅ **Story 8.2 Complete** - Avatar Upload & Management with image processing
+- 🔄 **Phase 8 In Progress** - 2/6 stories complete (33%)
 
-**Next Phase**: Phase 8 - User Dashboard & Profile Management OR Phase 7-Documentation
+**Next Story**: Story 8.3 - Profile Edit Page (username/email updates)
 
 ---
 
@@ -409,6 +408,31 @@ npm run migrate:rollback
 - Manual testing in Docker environment
 - Check logs for errors
 
+### 8. File Upload Pattern
+
+**For avatar/file uploads** (implemented in Story 8.2):
+- Use **multer** for file upload handling
+- Use **sharp** for image processing
+- **Validation**: File type (MIME), size limits
+- **Processing**: Resize, optimize, format conversion
+- **Storage**: Local filesystem (dev), cloud storage (prod)
+- **CORS**: Configure for static file serving
+  ```javascript
+  // Add CORS headers to static files
+  app.use('/uploads', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', config.cors.origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
+  }, express.static(path.join(__dirname, '../uploads')));
+
+  // Configure helmet for cross-origin resources
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
+  ```
+- **Cleanup**: Delete old files when replacing
+- **Activity Logging**: Track upload/delete actions
+
 ---
 
 ## Development Workflow
@@ -498,8 +522,8 @@ git commit -m "test(user): add user model unit tests"
 
 ## Project Status & Roadmap
 
-**Current Phase**: Phase 7-Beta Complete, Phase 8 Ready to Start
-**Overall Progress**: 58.5% (38/65 stories completed)
+**Current Phase**: Phase 8 In Progress (2/6 stories complete)
+**Overall Progress**: 61.5% (40/65 stories completed)
 
 ### Development Phases (13 Total - Added Phase 7-Beta)
 
@@ -521,7 +545,13 @@ git commit -m "test(user): add user model unit tests"
    - ✅ All MFA features tested and verified
    - ✅ Issues found and fixed (API URL, migrations, seeds)
    - ✅ Fixes merged back to staging
-8. 📋 **Phase 8**: User Dashboard & Profile Management
+8. 🔄 **Phase 8**: User Dashboard & Profile Management (IN PROGRESS - 2/6 stories, 33%)
+   - ✅ Story 8.1: User Dashboard Page
+   - ✅ Story 8.2: Avatar Upload & Management
+   - ⬜ Story 8.3: Profile Edit Page
+   - ⬜ Story 8.4: Activity Log Page
+   - ⬜ Story 8.5: Account Settings
+   - ⬜ Story 8.6: Profile Integration Tests
 9. 📋 **Phase 9**: Session Management & Security
 10. 📋 **Phase 10**: Admin Panel
 11. 📋 **Phase 11**: Testing & Documentation
@@ -780,5 +810,5 @@ When the user says they want to start a new phase or user story from PROJECT_ROA
 ---
 
 *Last Updated: November 10, 2025*
-*Version: 1.4*
-*Current Phase: 7-Beta Complete (Beta Branch Deployed & Tested on Render)*
+*Version: 1.5*
+*Current Phase: 8 In Progress - Stories 8.1-8.2 Complete (Dashboard & Avatar Upload)*
