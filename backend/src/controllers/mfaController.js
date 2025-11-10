@@ -66,6 +66,7 @@ const setupMFA = async (req, res) => {
       data: {
         secret,
         qrCode,
+        qrCodeUrl: otpauthUrl, // Add otpauthUrl for frontend QR generation
         backupCodes,
         instruction: 'Scan the QR code with your authenticator app, then verify with a TOTP code to enable MFA',
       },
@@ -121,8 +122,8 @@ const enableMFA = async (req, res) => {
       });
     }
 
-    // Verify TOTP token
-    const isValid = MFASecret.verifyTOTP(token, mfaSecret.secret);
+    // Verify TOTP token (window = 10 for testing = 5 minutes validity)
+    const isValid = MFASecret.verifyTOTP(token, mfaSecret.secret, 10);
 
     if (!isValid) {
       return res.status(401).json({
@@ -389,8 +390,8 @@ const verifyTOTP = async (req, res) => {
       });
     }
 
-    // Verify TOTP token
-    const isValid = MFASecret.verifyTOTP(token, mfaSecret.secret);
+    // Verify TOTP token (window = 10 for testing = 5 minutes validity)
+    const isValid = MFASecret.verifyTOTP(token, mfaSecret.secret, 10);
 
     if (!isValid) {
       // Increment failed attempts

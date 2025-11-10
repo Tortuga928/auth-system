@@ -48,14 +48,19 @@ function LoginPage() {
     setLoading(true);
 
     console.log('🔐 [LoginPage] Starting MFA verification...');
-    console.log('🔐 [LoginPage] MFA code:', mfaCode);
+    console.log('🔐 [LoginPage] MFA code (raw):', mfaCode);
     console.log('🔐 [LoginPage] Challenge token:', mfaChallengeToken?.substring(0, 20) + '...');
 
     try {
       let response;
 
       // Check if it's a backup code (contains dash or is longer than 6 chars)
-      const isBackupCode = mfaCode.includes('-') || mfaCode.length > 6;
+      // Sanitize input: trim whitespace and remove any non-alphanumeric characters except dash
+      const sanitizedCode = mfaCode.trim().replace(/[^0-9A-Za-z-]/g, '');
+
+      console.log('🔐 [LoginPage] MFA code (sanitized):', sanitizedCode);
+
+      const isBackupCode = sanitizedCode.includes('-') || sanitizedCode.length > 6;
 
       console.log('🔐 [LoginPage] Is backup code:', isBackupCode);
 
@@ -64,14 +69,14 @@ function LoginPage() {
         // Use backup code endpoint
         response = await apiService.auth.verifyBackupCode({
           mfaChallengeToken,
-          backupCode: mfaCode.toUpperCase(),
+          backupCode: sanitizedCode.toUpperCase(),
         });
       } else {
         console.log('🔐 [LoginPage] Calling verifyMFA endpoint...');
         // Use TOTP endpoint
         response = await apiService.auth.verifyMFA({
           mfaChallengeToken,
-          token: mfaCode,
+          token: sanitizedCode,
         });
       }
 

@@ -64,7 +64,8 @@ export const useMFA = () => {
         success: true,
         data: {
           secret: response.data.data.secret,
-          qrCodeUrl: response.data.data.qrCodeUrl,
+          qrCodeUrl: response.data.data.qrCodeUrl, // Use otpauthUrl from backend
+          backupCodes: response.data.data.backupCodes,
         },
       };
     } catch (error) {
