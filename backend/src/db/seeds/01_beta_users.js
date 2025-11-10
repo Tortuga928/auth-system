@@ -22,9 +22,10 @@ exports.seed = async function (knex) {
 
   console.log(`🌱 Seeding beta test users (${env} environment)...`);
 
-  // Delete existing users (clean slate)
+  // Delete existing data (clean slate)
+  await knex('mfa_secrets').del(); // Delete MFA secrets first (foreign key constraint)
   await knex('users').del();
-  console.log('   Cleared existing users');
+  console.log('   Cleared existing users and MFA secrets');
 
   // Hash passwords (use lower rounds for faster seeding in test)
   const saltRounds = 10;
@@ -58,7 +59,6 @@ exports.seed = async function (knex) {
       email_verified: true,
       role: 'admin',
       is_active: true,
-      mfa_enabled: false,
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },
@@ -71,7 +71,6 @@ exports.seed = async function (knex) {
       email_verified: true,
       role: 'user',
       is_active: true,
-      mfa_enabled: false,
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },
@@ -84,13 +83,23 @@ exports.seed = async function (knex) {
       email_verified: true,
       role: 'user',
       is_active: true,
-      mfa_enabled: true,
-      mfa_secret: mfaSecret.base32, // Store base32 encoded secret
-      mfa_backup_codes: JSON.stringify(backupCodes),
       created_at: knex.fn.now(),
       updated_at: knex.fn.now(),
     },
   ]).returning('*');
+
+  // Create MFA secret for the MFA user (in separate mfa_secrets table)
+  const mfaUser = users.find(u => u.username === 'mfauser');
+  if (mfaUser) {
+    await knex('mfa_secrets').insert({
+      user_id: mfaUser.id,
+      secret: mfaSecret.base32,
+      backup_codes: JSON.stringify(backupCodes),
+      enabled: true,
+      enabled_at: knex.fn.now(),
+    });
+    console.log('   Created MFA secret for mfauser');
+  }
 
   console.log(`✅ Created ${users.length} test users\n`);
   console.log('================================================================================');
