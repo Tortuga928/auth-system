@@ -1,0 +1,172 @@
+# Render Blueprint for Authentication System - Beta Environment
+# This file defines all services for the beta testing environment
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # Backend API Service
+  - type: web
+    name: auth-backend-beta
+    env: docker
+    region: oregon
+    branch: beta
+    dockerfilePath: ./backend/Dockerfile.prod
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      # Node Environment
+      - key: NODE_ENV
+        value: production
+
+      # Server Configuration
+      - key: PORT
+        value: 5000
+
+      # Database (Render will auto-inject DATABASE_URL from postgres service)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: auth-postgres-beta
+          property: connectionString
+
+      # Redis Connection
+      - key: REDIS_URL
+        fromService:
+          name: auth-redis-beta
+          type: redis
+          property: connectionString
+
+      # Frontend URL (will be updated after frontend service is created)
+      - key: FRONTEND_URL
+        value: https://auth-frontend-beta.onrender.com
+
+      # JWT Configuration (SENSITIVE - Add manually via Render dashboard)
+      # - JWT_SECRET
+      # - JWT_EXPIRES_IN: 1h
+      # - REFRESH_TOKEN_EXPIRES_IN: 7d
+
+      # MFA Configuration (SENSITIVE - Add manually via Render dashboard)
+      # - MFA_ENCRYPTION_KEY
+
+      # Email Configuration (SENSITIVE - Add manually via Render dashboard)
+      # - SENDGRID_API_KEY
+      # - SENDGRID_FROM_EMAIL
+
+      # OAuth Configuration (SENSITIVE - Add manually via Render dashboard)
+      # - GOOGLE_CLIENT_ID
+      # - GOOGLE_CLIENT_SECRET
+      # - GOOGLE_CALLBACK_URL
+      # - GITHUB_CLIENT_ID
+      # - GITHUB_CLIENT_SECRET
+      # - GITHUB_CALLBACK_URL
+
+    # Build command (runs during deployment)
+    buildCommand: npm ci --only=production
+
+    # Start command
+    startCommand: npm run migrate && node src/app.js
+
+    # Auto-deploy on push to beta branch
+    autoDeploy: true
+
+  # Frontend Service
+  - type: web
+    name: auth-frontend-beta
+    env: docker
+    region: oregon
+    branch: beta
+    dockerfilePath: ./frontend/Dockerfile.prod
+    dockerContext: ./frontend
+    plan: free
+    healthCheckPath: /
+    envVars:
+      # API URL (backend service URL)
+      - key: REACT_APP_API_URL
+        fromService:
+          name: auth-backend-beta
+          type: web
+          property: host
+
+      - key: REACT_APP_ENV
+        value: beta
+
+    # Build happens in Docker, no separate build command needed
+
+    # Auto-deploy on push to beta branch
+    autoDeploy: true
+
+  # PostgreSQL Database
+  - type: pserv
+    name: auth-postgres-beta
+    env: docker
+    region: oregon
+    plan: free
+    image: postgres:15-alpine
+    disk:
+      name: postgres-beta-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 1
+    envVars:
+      - key: POSTGRES_USER
+        value: postgres
+
+      - key: POSTGRES_DB
+        value: authdb_beta
+
+      # POSTGRES_PASSWORD - Add manually via Render dashboard
+
+    healthCheckPath: /
+
+  # Redis Cache
+  - type: redis
+    name: auth-redis-beta
+    region: oregon
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Empty = accessible by all Render services in same team
+
+databases:
+  # PostgreSQL Database (alternative definition)
+  - name: auth-db-beta
+    databaseName: authdb_beta
+    user: postgres
+    region: oregon
+    plan: free
+    # SENSITIVE: Set password via Render dashboard
+
+# Notes for manual configuration after Blueprint deployment:
+#
+# 1. Add Sensitive Environment Variables via Render Dashboard:
+#    - auth-backend-beta service:
+#      * JWT_SECRET: Generate with: openssl rand -hex 32
+#      * JWT_EXPIRES_IN: 1h
+#      * REFRESH_TOKEN_EXPIRES_IN: 7d
+#      * MFA_ENCRYPTION_KEY: Use same as production or generate new
+#      * SENDGRID_API_KEY: (if testing emails)
+#      * SENDGRID_FROM_EMAIL: (if testing emails)
+#      * GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET: (if testing OAuth)
+#      * GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET: (if testing OAuth)
+#
+#    - auth-postgres-beta:
+#      * POSTGRES_PASSWORD: Generate secure password
+#
+# 2. Update FRONTEND_URL after deployment:
+#    - Get actual backend URL from Render
+#    - Update in auth-backend-beta environment variables
+#
+# 3. Update REACT_APP_API_URL after deployment:
+#    - Get actual backend URL from Render
+#    - Update in auth-frontend-beta environment variables
+#
+# 4. Run database seeds:
+#    - After first deployment, open shell in auth-backend-beta
+#    - Run: npm run seed:beta
+#
+# 5. Verify all health checks pass:
+#    - Backend: https://auth-backend-beta.onrender.com/api/health
+#    - Frontend: https://auth-frontend-beta.onrender.com/
+#
+# 6. Test complete user flows:
+#    - Registration
+#    - Login
+#    - MFA setup
+#    - Password reset
