@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import useMFA from '../hooks/useMFA';
 import BackupCodesDisplay from '../components/BackupCodesDisplay';
+import MFASetupWizard from '../components/MFASetupWizard';
 
 const MFASettingsPage = () => {
   console.log('📄 [MFASettingsPage] Component rendering...');
@@ -32,14 +33,31 @@ const MFASettingsPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+
 
   /**
-   * Handle Enable MFA
-   * TODO: Replace with MFASetupWizard modal in Checkpoint 2
+   * Handle Enable MFA - Opens the MFA Setup Wizard
    */
   const handleEnableMFA = () => {
-    alert('MFA Setup Wizard will be implemented in Checkpoint 2');
-    // Will open MFASetupWizard modal
+    setShowSetupWizard(true);
+  };
+
+  /**
+   * Handle MFA Setup Wizard Completion
+   */
+  const handleWizardComplete = async () => {
+    setShowSetupWizard(false);
+    await refreshStatus(); // Refresh MFA status after setup
+    setActionSuccess('Two-Factor Authentication enabled successfully!');
+    setTimeout(() => setActionSuccess(''), 5000);
+  };
+
+  /**
+   * Handle MFA Setup Wizard Close
+   */
+  const handleWizardClose = () => {
+    setShowSetupWizard(false);
   };
 
   /**
@@ -73,6 +91,7 @@ const MFASettingsPage = () => {
   const handleViewBackupCodes = async () => {
     alert('For security, backup codes are only shown once during setup.\\nUse "Regenerate Backup Codes" to get new codes.');
   };
+
 
   /**
    * Handle Regenerate Backup Codes
@@ -289,6 +308,14 @@ const MFASettingsPage = () => {
           codes={backupCodes}
           onClose={handleCloseBackupCodes}
           onRegenerate={handleRegenerateBackupCodes}
+        />
+      )}
+
+      {showSetupWizard && (
+        <MFASetupWizard
+          isOpen={showSetupWizard}
+          onClose={handleWizardClose}
+          onComplete={handleWizardComplete}
         />
       )}
 
@@ -558,3 +585,4 @@ const MFASettingsPage = () => {
 };
 
 export default MFASettingsPage;
+

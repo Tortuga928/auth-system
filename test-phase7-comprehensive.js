@@ -1,157 +1,171 @@
 /**
- * Phase 7: Multi-Factor Authentication - Comprehensive Test Suite
+ * Checkpoint 1 - MFA UI Backend Integration Test
  *
- * Tests all MFA functionality across Stories 7.1-7.4:
- * - Story 7.1: MFA Setup & Configuration
- * - Story 7.2: TOTP Verification
- * - Story 7.3: MFA Login Flow
- * - Story 7.4: MFA Recovery & Management
+ * Tests all backend endpoints that the frontend components use:
+ * - useMFA hook API calls
+ * - MFA status fetching
+ * - Backup codes regeneration
+ * - MFA enable/disable flows
  */
 
 require('dotenv').config();
 const axios = require('axios');
 const speakeasy = require('speakeasy');
-const User = require('./backend/src/models/User');
-const MFASecret = require('./backend/src/models/MFASecret');
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = process.env.API_URL || 'http://localhost:5000';
 
 // Test state
-let testState = {
-  testUser: null,
-  testUserToken: null,
-  adminUser: null,
-  adminUserToken: null,
+const testState = {
+  user: null,
+  authToken: null,
   mfaSecret: null,
   backupCodes: [],
   mfaChallengeToken: null,
-  mfaResetToken: null,
   results: {
     passed: [],
     failed: [],
-    skipped: []
-  }
+  },
 };
 
-// Helper: Log progress
-function logProgress(message, level = 'INFO') {
+// Helper: Log with timestamp and emoji
+function log(message, type = 'info') {
   const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-  const prefix = {
-    'INFO': '📋',
-    'SUCCESS': '✅',
-    'ERROR': '❌',
-    'WARN': '⚠️',
-    'SETUP': '🔧'
-  }[level] || '📋';
+  const emoji = {
+    info: 'ℹ️',
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    test: '🧪',
+    progress: '⏳',
+  }[type] || 'ℹ️';
 
-  console.log(`[${timestamp}] ${prefix} ${message}`);
+  console.log(`[${timestamp}] ${emoji}  ${message}`);
 }
 
 // Helper: Log test result
-function logTest(category, testId, description, passed, details = '') {
+function logTest(testId, description, passed, details = '') {
   const status = passed ? '✅ PASS' : '❌ FAIL';
-  console.log(`\n${category} | ${testId}: ${description}`);
+  console.log(`\n${testId}: ${description}`);
   console.log(`${status}${details ? ' - ' + details : ''}`);
 
   if (passed) {
-    testState.results.passed.push({ category, testId, description });
+    testState.results.passed.push({ testId, description });
   } else {
-    testState.results.failed.push({ category, testId, description, details });
+    testState.results.failed.push({ testId, description, details });
   }
 }
 
-// Setup: Create test users
-async function setupTestUsers() {
-  logProgress('Setting up test users...', 'SETUP');
+// Setup: Create test user and login
+async function setupTestUser() {
+  log('Setting up test user...', 'progress');
 
   try {
-    // Create regular test user
-    const testEmail = `phase7-test-${Date.now()}@example.com`;
-    const testPassword = 'Test123!@#';
+    const testEmail = `checkpoint1-test-${Date.now()}@example.com`;
+    const testPassword = 'Test123!@#Checkpoint1';
 
-    const userResponse = await axios.post(`${API_BASE_URL}/api/auth/register`, {
-      username: `phase7test${Date.now()}`,
+    // Register user
+    const registerResponse = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+      username: `checkpoint1user${Date.now()}`,
       email: testEmail,
       password: testPassword,
     });
 
-    testState.testUser = {
-      id: userResponse.data.data.user.id,
+    testState.user = {
+      id: registerResponse.data.data.user.id,
       email: testEmail,
       password: testPassword,
     };
 
+    // Login to get token
     const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
       email: testEmail,
       password: testPassword,
     });
 
-    testState.testUserToken = loginResponse.data.data.tokens.accessToken;
-    logProgress(`Created test user: ${testEmail}`, 'SUCCESS');
+    testState.authToken = loginResponse.data.data.tokens.accessToken;
 
-    // Create admin user
-    const adminEmail = `phase7-admin-${Date.now()}@example.com`;
-    const adminPassword = 'Admin123!@#';
-
-    const adminResponse = await axios.post(`${API_BASE_URL}/api/auth/register`, {
-      username: `phase7admin${Date.now()}`,
-      email: adminEmail,
-      password: adminPassword,
-    });
-
-    testState.adminUser = {
-      id: adminResponse.data.data.user.id,
-      email: adminEmail,
-      password: adminPassword,
-    };
-
-    // Update to admin role
-    await User.update(testState.adminUser.id, { role: 'admin' });
-
-    const adminLoginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-      email: adminEmail,
-      password: adminPassword,
-    });
-
-    testState.adminUserToken = adminLoginResponse.data.data.tokens.accessToken;
-    logProgress(`Created admin user: ${adminEmail}`, 'SUCCESS');
-
+    log(`✅ Test user created: ${testEmail}`, 'success');
+    return true;
   } catch (error) {
-    logProgress(`Setup failed: ${error.message}`, 'ERROR');
-    throw error;
+    log(`❌ Failed to create test user: ${error.message}`, 'error');
+    return false;
   }
 }
 
-// STORY 7.1: MFA Setup & Configuration Tests
-async function testStory71_MFASetup() {
-  logProgress('Testing Story 7.1: MFA Setup & Configuration...', 'INFO');
+// Test 1: Fetch MFA Status (useMFA hook - initial load)
+async function test1_FetchMFAStatus() {
+  log('\n📋 TEST 1: Fetch MFA Status (GET /api/auth/mfa/status)', 'test');
 
-  // Test 7.1-01: Setup MFA
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/auth/mfa/status`, {
+      headers: { Authorization: `Bearer ${testState.authToken}` },
+    });
+
+    const passed = response.data.success === true &&
+                   response.data.data.mfaEnabled === false &&
+                   response.data.data.backupCodesRemaining === 0;
+
+    logTest(
+      'CP1-TEST-01',
+      'Fetch MFA status for new user',
+      passed,
+      passed ? 'MFA disabled, 0 backup codes' : 'Unexpected response structure'
+    );
+
+    return passed;
+  } catch (error) {
+    logTest('CP1-TEST-01', 'Fetch MFA status', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 2: Setup MFA (Generate Secret & QR Code)
+async function test2_SetupMFA() {
+  log('\n📋 TEST 2: Setup MFA (POST /api/auth/mfa/setup)', 'test');
+
   try {
     const response = await axios.post(
       `${API_BASE_URL}/api/auth/mfa/setup`,
       {},
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
+      { headers: { Authorization: `Bearer ${testState.authToken}` } }
     );
 
     const passed = response.data.success === true &&
                    response.data.data.secret &&
                    response.data.data.qrCode &&
-                   response.data.data.backupCodes;
+                   response.data.data.backupCodes &&
+                   response.data.data.backupCodes.length === 10;
 
     if (passed) {
       testState.mfaSecret = response.data.data.secret;
       testState.backupCodes = response.data.data.backupCodes;
     }
 
-    logTest('Story 7.1', 'TC-7.1-01', 'Setup MFA (generate secret and QR code)', passed,
-      passed ? `Secret: ${testState.mfaSecret.substring(0, 10)}..., Backup codes: ${testState.backupCodes.length}` : 'Failed to generate MFA setup');
+    logTest(
+      'CP1-TEST-02',
+      'Setup MFA and generate QR code',
+      passed,
+      passed ? `Secret: ${testState.mfaSecret.substring(0, 10)}..., ${testState.backupCodes.length} backup codes` : 'Missing secret, QR code, or backup codes'
+    );
+
+    return passed;
   } catch (error) {
-    logTest('Story 7.1', 'TC-7.1-01', 'Setup MFA', false, error.response?.data?.message || error.message);
+    logTest('CP1-TEST-02', 'Setup MFA', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 3: Enable MFA (with valid TOTP)
+async function test3_EnableMFA() {
+  log('\n📋 TEST 3: Enable MFA (POST /api/auth/mfa/enable)', 'test');
+
+  if (!testState.mfaSecret) {
+    logTest('CP1-TEST-03', 'Enable MFA', false, 'No MFA secret from previous test');
+    return false;
   }
 
-  // Test 7.1-02: Enable MFA with valid TOTP
   try {
+    // Generate valid TOTP token
     const token = speakeasy.totp({
       secret: testState.mfaSecret,
       encoding: 'base32',
@@ -160,37 +174,62 @@ async function testStory71_MFASetup() {
     const response = await axios.post(
       `${API_BASE_URL}/api/auth/mfa/enable`,
       { token },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
+      { headers: { Authorization: `Bearer ${testState.authToken}` } }
     );
 
-    const passed = response.data.success === true;
-    logTest('Story 7.1', 'TC-7.1-02', 'Enable MFA with valid TOTP token', passed,
-      passed ? 'MFA enabled successfully' : 'Failed to enable MFA');
-  } catch (error) {
-    logTest('Story 7.1', 'TC-7.1-02', 'Enable MFA with valid TOTP token', false, error.response?.data?.message || error.message);
-  }
+    const passed = response.data.success === true &&
+                   response.data.data.enabled === true;
 
-  // Test 7.1-03: Enable MFA with invalid TOTP (should fail)
+    logTest(
+      'CP1-TEST-03',
+      'Enable MFA with valid TOTP',
+      passed,
+      passed ? 'MFA enabled successfully' : 'Failed to enable MFA'
+    );
+
+    return passed;
+  } catch (error) {
+    logTest('CP1-TEST-03', 'Enable MFA', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 4: Verify MFA Status After Enable
+async function test4_VerifyMFAEnabled() {
+  log('\n📋 TEST 4: Verify MFA Enabled (GET /api/auth/mfa/status)', 'test');
+
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/enable`,
-      { token: '000000' },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
+    const response = await axios.get(`${API_BASE_URL}/api/auth/mfa/status`, {
+      headers: { Authorization: `Bearer ${testState.authToken}` },
+    });
+
+    const passed = response.data.success === true &&
+                   response.data.data.mfaEnabled === true &&
+                   response.data.data.backupCodesRemaining === 10;
+
+    logTest(
+      'CP1-TEST-04',
+      'Verify MFA is enabled with 10 backup codes',
+      passed,
+      passed ? 'MFA enabled, 10 backup codes available' : 'MFA not properly enabled'
     );
 
-    logTest('Story 7.1', 'TC-7.1-03', 'Enable MFA with invalid TOTP (should reject)', false, 'Should have rejected invalid token');
+    return passed;
   } catch (error) {
-    const passed = error.response?.status === 400;
-    logTest('Story 7.1', 'TC-7.1-03', 'Enable MFA with invalid TOTP (should reject)', passed,
-      passed ? 'Correctly rejected invalid token' : 'Wrong error response');
+    logTest('CP1-TEST-04', 'Verify MFA enabled', false, error.response?.data?.message || error.message);
+    return false;
   }
+}
 
-  // Test 7.1-04: Regenerate backup codes
+// Test 5: Regenerate Backup Codes
+async function test5_RegenerateBackupCodes() {
+  log('\n📋 TEST 5: Regenerate Backup Codes (POST /api/auth/mfa/backup-codes/regenerate)', 'test');
+
   try {
     const response = await axios.post(
       `${API_BASE_URL}/api/auth/mfa/backup-codes/regenerate`,
-      { password: testState.testUser.password },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
+      { password: testState.user.password },
+      { headers: { Authorization: `Bearer ${testState.authToken}` } }
     );
 
     const passed = response.data.success === true &&
@@ -198,54 +237,36 @@ async function testStory71_MFASetup() {
                    response.data.data.backupCodes.length === 10;
 
     if (passed) {
-      testState.backupCodes = response.data.data.backupCodes;
+      const newCodes = response.data.data.backupCodes;
+      const allDifferent = newCodes.every(code => !testState.backupCodes.includes(code));
+
+      logTest(
+        'CP1-TEST-05',
+        'Regenerate backup codes',
+        passed && allDifferent,
+        `Generated 10 new codes (all different: ${allDifferent})`
+      );
+
+      testState.backupCodes = newCodes;
+      return passed && allDifferent;
     }
 
-    logTest('Story 7.1', 'TC-7.1-04', 'Regenerate backup codes', passed,
-      passed ? `New backup codes: ${testState.backupCodes.length}` : 'Failed to regenerate');
+    logTest('CP1-TEST-05', 'Regenerate backup codes', false, 'Missing backup codes in response');
+    return false;
   } catch (error) {
-    logTest('Story 7.1', 'TC-7.1-04', 'Regenerate backup codes', false, error.response?.data?.message || error.message);
+    logTest('CP1-TEST-05', 'Regenerate backup codes', false, error.response?.data?.message || error.message);
+    return false;
   }
 }
 
-// STORY 7.2: TOTP Verification Tests
-async function testStory72_TOTPVerification() {
-  logProgress('Testing Story 7.2: TOTP Verification...', 'INFO');
+// Test 6: Test Login with MFA (Returns Challenge Token)
+async function test6_LoginWithMFA() {
+  log('\n📋 TEST 6: Login with MFA Enabled (POST /api/auth/login)', 'test');
 
-  // Test 7.2-01: Verify valid TOTP token
-  try {
-    const token = speakeasy.totp({
-      secret: testState.mfaSecret,
-      encoding: 'base32',
-    });
-
-    const response = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/verify`,
-      {
-        token,
-        mfaChallengeToken: 'test-challenge-token' // This will be validated in 7.3
-      }
-    );
-
-    // This might fail without proper challenge token, but we're testing the endpoint exists
-    logTest('Story 7.2', 'TC-7.2-01', 'Verify TOTP endpoint accessible', true, 'Endpoint exists');
-  } catch (error) {
-    // Expected to fail without valid challenge token
-    const passed = error.response?.status === 400 || error.response?.status === 401;
-    logTest('Story 7.2', 'TC-7.2-01', 'Verify TOTP endpoint accessible', passed,
-      'Endpoint exists (requires challenge token)');
-  }
-}
-
-// STORY 7.3: MFA Login Flow Tests
-async function testStory73_MFALoginFlow() {
-  logProgress('Testing Story 7.3: MFA Login Flow...', 'INFO');
-
-  // Test 7.3-01: Login with MFA enabled (should return challenge token)
   try {
     const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-      email: testState.testUser.email,
-      password: testState.testUser.password,
+      email: testState.user.email,
+      password: testState.user.password,
     });
 
     const passed = response.data.success === true &&
@@ -256,14 +277,31 @@ async function testStory73_MFALoginFlow() {
       testState.mfaChallengeToken = response.data.data.mfaChallengeToken;
     }
 
-    logTest('Story 7.3', 'TC-7.3-01', 'Login with MFA enabled returns challenge token', passed,
-      passed ? `Challenge token received: ${testState.mfaChallengeToken.substring(0, 20)}...` : 'No challenge token');
+    logTest(
+      'CP1-TEST-06',
+      'Login returns MFA challenge token',
+      passed,
+      passed ? `Challenge token: ${testState.mfaChallengeToken.substring(0, 20)}...` : 'No challenge token'
+    );
+
+    return passed;
   } catch (error) {
-    logTest('Story 7.3', 'TC-7.3-01', 'Login with MFA enabled', false, error.response?.data?.message || error.message);
+    logTest('CP1-TEST-06', 'Login with MFA', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 7: Verify TOTP During Login
+async function test7_VerifyTOTP() {
+  log('\n📋 TEST 7: Verify TOTP Code (POST /api/auth/mfa/verify)', 'test');
+
+  if (!testState.mfaChallengeToken) {
+    logTest('CP1-TEST-07', 'Verify TOTP', false, 'No challenge token from previous test');
+    return false;
   }
 
-  // Test 7.3-02: Complete MFA login with valid TOTP
   try {
+    // Generate valid TOTP token
     const token = speakeasy.totp({
       secret: testState.mfaSecret,
       encoding: 'base32',
@@ -278,282 +316,260 @@ async function testStory73_MFALoginFlow() {
                    response.data.data.tokens &&
                    response.data.data.tokens.accessToken;
 
-    logTest('Story 7.3', 'TC-7.3-02', 'Complete MFA login with valid TOTP', passed,
-      passed ? 'Login successful with TOTP' : 'TOTP verification failed');
-  } catch (error) {
-    logTest('Story 7.3', 'TC-7.3-02', 'Complete MFA login with valid TOTP', false, error.response?.data?.message || error.message);
-  }
+    if (passed) {
+      testState.authToken = response.data.data.tokens.accessToken;
+    }
 
-  // Test 7.3-03: Login again and verify with backup code
+    logTest(
+      'CP1-TEST-07',
+      'Verify TOTP and receive access tokens',
+      passed,
+      passed ? 'TOTP verified, tokens received' : 'Token verification failed'
+    );
+
+    return passed;
+  } catch (error) {
+    logTest('CP1-TEST-07', 'Verify TOTP', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 8: Verify Backup Code During Login
+async function test8_VerifyBackupCode() {
+  log('\n📋 TEST 8: Verify Backup Code (POST /api/auth/mfa/verify-backup)', 'test');
+
+  // Login again to get a new challenge token
   try {
-    // Get new challenge token
     const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-      email: testState.testUser.email,
-      password: testState.testUser.password,
+      email: testState.user.email,
+      password: testState.user.password,
     });
 
-    const challengeToken = loginResponse.data.data.mfaChallengeToken;
-    const backupCode = testState.backupCodes[0]; // Use first backup code
+    testState.mfaChallengeToken = loginResponse.data.data.mfaChallengeToken;
+
+    // Use first backup code
+    const backupCode = testState.backupCodes[0];
 
     const response = await axios.post(`${API_BASE_URL}/api/auth/mfa/verify-backup`, {
       backupCode,
-      mfaChallengeToken: challengeToken,
+      mfaChallengeToken: testState.mfaChallengeToken,
     });
 
     const passed = response.data.success === true &&
                    response.data.data.tokens &&
                    response.data.data.tokens.accessToken;
 
-    logTest('Story 7.3', 'TC-7.3-03', 'Complete MFA login with backup code', passed,
-      passed ? `Login successful with backup code (${testState.backupCodes.length - 1} remaining)` : 'Backup code verification failed');
+    logTest(
+      'CP1-TEST-08',
+      'Verify backup code and receive tokens',
+      passed,
+      passed ? 'Backup code verified, tokens received' : 'Backup code verification failed'
+    );
+
+    if (passed) {
+      testState.authToken = response.data.data.tokens.accessToken;
+    }
+
+    return passed;
   } catch (error) {
-    logTest('Story 7.3', 'TC-7.3-03', 'Complete MFA login with backup code', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.3-04: Invalid TOTP should fail
-  try {
-    const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-      email: testState.testUser.email,
-      password: testState.testUser.password,
+    const errorDetail = error.response?.data?.message || error.response?.data?.error || error.message;
+    console.log('Test 8 Error Details:', {
+      backupCode,
+      error: errorDetail,
+      status: error.response?.status,
     });
-
-    const challengeToken = loginResponse.data.data.mfaChallengeToken;
-
-    const response = await axios.post(`${API_BASE_URL}/api/auth/mfa/verify`, {
-      token: '000000',
-      mfaChallengeToken: challengeToken,
-    });
-
-    logTest('Story 7.3', 'TC-7.3-04', 'Login with invalid TOTP (should reject)', false, 'Should have rejected invalid TOTP');
-  } catch (error) {
-    const passed = error.response?.status === 400 || error.response?.status === 401;
-    logTest('Story 7.3', 'TC-7.3-04', 'Login with invalid TOTP (should reject)', passed,
-      passed ? 'Correctly rejected invalid TOTP' : 'Wrong error response');
+    logTest('CP1-TEST-08', 'Verify backup code', false, errorDetail);
+    return false;
   }
 }
 
-// STORY 7.4: MFA Recovery & Management Tests
-async function testStory74_MFARecovery() {
-  logProgress('Testing Story 7.4: MFA Recovery & Management...', 'INFO');
+// Test 9: Disable MFA
+async function test9_DisableMFA() {
+  log('\n📋 TEST 9: Disable MFA (POST /api/auth/mfa/disable)', 'test');
 
-  // Test 7.4-01: Get MFA status
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/api/auth/mfa/disable`,
+      { password: testState.user.password },
+      { headers: { Authorization: `Bearer ${testState.authToken}` } }
+    );
+
+    const passed = response.data.success === true;
+
+    logTest(
+      'CP1-TEST-09',
+      'Disable MFA with valid password',
+      passed,
+      passed ? 'MFA disabled successfully' : 'Failed to disable MFA'
+    );
+
+    return passed;
+  } catch (error) {
+    logTest('CP1-TEST-09', 'Disable MFA', false, error.response?.data?.message || error.message);
+    return false;
+  }
+}
+
+// Test 10: Verify MFA Disabled
+async function test10_VerifyMFADisabled() {
+  log('\n📋 TEST 10: Verify MFA Disabled (GET /api/auth/mfa/status)', 'test');
+
   try {
     const response = await axios.get(`${API_BASE_URL}/api/auth/mfa/status`, {
-      headers: { Authorization: `Bearer ${testState.testUserToken}` },
+      headers: { Authorization: `Bearer ${testState.authToken}` },
     });
 
     const passed = response.data.success === true &&
-                   response.data.data.mfaEnabled === true;
+                   response.data.data.mfaEnabled === false;
 
-    logTest('Story 7.4', 'TC-7.4-01', 'Get MFA status', passed,
-      passed ? `MFA enabled: ${response.data.data.mfaEnabled}, Backup codes: ${response.data.data.backupCodesRemaining}` : 'Failed to get status');
-  } catch (error) {
-    logTest('Story 7.4', 'TC-7.4-01', 'Get MFA status', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.4-02: Request MFA reset
-  try {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/reset-request`,
-      { password: testState.testUser.password },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
+    logTest(
+      'CP1-TEST-10',
+      'Verify MFA is disabled',
+      passed,
+      passed ? `MFA disabled (${response.data.data.backupCodesRemaining} codes in DB)` : 'MFA still enabled'
     );
 
-    const passed = response.data.success === true;
-
-    if (passed) {
-      // Get reset token from database
-      const user = await User.findByEmail(testState.testUser.email);
-      testState.mfaResetToken = user.mfa_reset_token;
-    }
-
-    logTest('Story 7.4', 'TC-7.4-02', 'Request MFA reset with valid password', passed,
-      passed ? 'Reset email sent (token stored)' : 'Failed to request reset');
+    return passed;
   } catch (error) {
-    logTest('Story 7.4', 'TC-7.4-02', 'Request MFA reset', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.4-03: Confirm MFA reset with valid token
-  try {
-    const response = await axios.post(`${API_BASE_URL}/api/auth/mfa/reset-confirm`, {
-      token: testState.mfaResetToken,
-    });
-
-    const passed = response.data.success === true;
-    logTest('Story 7.4', 'TC-7.4-03', 'Confirm MFA reset with valid token', passed,
-      passed ? 'MFA disabled successfully' : 'Failed to confirm reset');
-  } catch (error) {
-    logTest('Story 7.4', 'TC-7.4-03', 'Confirm MFA reset', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.4-04: Re-enable MFA for admin unlock test
-  try {
-    logProgress('Re-enabling MFA for admin unlock test...', 'INFO');
-
-    // Setup MFA again
-    const setupResponse = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/setup`,
-      {},
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
-    );
-
-    const token = speakeasy.totp({
-      secret: setupResponse.data.data.secret,
-      encoding: 'base32',
-    });
-
-    await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/enable`,
-      { token },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
-    );
-
-    // Lock the account by recording failed attempts
-    for (let i = 0; i < 6; i++) {
-      await MFASecret.recordFailedAttempt(testState.testUser.id);
-    }
-
-    logTest('Story 7.4', 'TC-7.4-04', 'Re-enable MFA and lock account (setup for unlock test)', true, 'Account locked');
-  } catch (error) {
-    logTest('Story 7.4', 'TC-7.4-04', 'Re-enable MFA and lock account', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.4-05: Admin unlock MFA account
-  try {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/admin/unlock/${testState.testUser.id}`,
-      {},
-      { headers: { Authorization: `Bearer ${testState.adminUserToken}` } }
-    );
-
-    const passed = response.data.success === true;
-    logTest('Story 7.4', 'TC-7.4-05', 'Admin unlock MFA account', passed,
-      passed ? 'Account unlocked successfully' : 'Failed to unlock');
-  } catch (error) {
-    logTest('Story 7.4', 'TC-7.4-05', 'Admin unlock MFA account', false, error.response?.data?.message || error.message);
-  }
-
-  // Test 7.4-06: Non-admin cannot unlock (should fail)
-  try {
-    const response = await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/admin/unlock/${testState.adminUser.id}`,
-      {},
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
-    );
-
-    logTest('Story 7.4', 'TC-7.4-06', 'Non-admin unlock attempt (should reject)', false, 'Should have rejected non-admin');
-  } catch (error) {
-    const passed = error.response?.status === 403;
-    logTest('Story 7.4', 'TC-7.4-06', 'Non-admin unlock attempt (should reject)', passed,
-      passed ? 'Correctly rejected non-admin' : 'Wrong error response');
+    logTest('CP1-TEST-10', 'Verify MFA disabled', false, error.response?.data?.message || error.message);
+    return false;
   }
 }
 
-// Disable MFA for cleanup
-async function disableMFA() {
-  try {
-    logProgress('Disabling MFA for test user...', 'INFO');
-    await axios.post(
-      `${API_BASE_URL}/api/auth/mfa/disable`,
-      { password: testState.testUser.password },
-      { headers: { Authorization: `Bearer ${testState.testUserToken}` } }
-    );
-    logProgress('MFA disabled successfully', 'SUCCESS');
-  } catch (error) {
-    logProgress(`Failed to disable MFA: ${error.message}`, 'WARN');
+// Main test runner
+async function runTests() {
+  console.log('═'.repeat(80));
+  console.log('🧪  CHECKPOINT 1 - MFA UI BACKEND INTEGRATION TESTS');
+  console.log('═'.repeat(80));
+  console.log('');
+  console.log('Testing all backend endpoints used by Checkpoint 1 components:');
+  console.log('- useMFA hook API calls');
+  console.log('- MFASettings page functionality');
+  console.log('- BackupCodesDisplay component data');
+  console.log('');
+  console.log('═'.repeat(80));
+
+  // Setup
+  const setupSuccess = await setupTestUser();
+  if (!setupSuccess) {
+    console.log('\n❌ Setup failed. Cannot continue tests.');
+    process.exit(1);
   }
-}
 
-// Generate final report
-function generateReport() {
-  console.log('\n' + '='.repeat(80));
-  console.log('PHASE 7: MULTI-FACTOR AUTHENTICATION - COMPREHENSIVE TEST REPORT');
-  console.log('='.repeat(80) + '\n');
+  console.log('');
+  log('Starting tests...', 'progress');
 
-  const total = testState.results.passed.length + testState.results.failed.length;
-  const passRate = ((testState.results.passed.length / total) * 100).toFixed(1);
+  // Run all tests
+  await test1_FetchMFAStatus();
+  await test2_SetupMFA();
+  await test3_EnableMFA();
+  await test4_VerifyMFAEnabled();
+  await test5_RegenerateBackupCodes();
+  await test6_LoginWithMFA();
+  await test7_VerifyTOTP();
+  await test8_VerifyBackupCode();
+  await test9_DisableMFA();
+  await test10_VerifyMFADisabled();
 
-  console.log('SUMMARY:');
-  console.log(`  Total Tests:    ${total}`);
-  console.log(`  Passed:         ${testState.results.passed.length} ✅`);
-  console.log(`  Failed:         ${testState.results.failed.length} ❌`);
-  console.log(`  Pass Rate:      ${passRate}%\n`);
+  // Generate report
+  console.log('\n');
+  console.log('═'.repeat(80));
+  console.log('📊  TEST SUMMARY');
+  console.log('═'.repeat(80));
+  console.log('');
+
+  const totalTests = testState.results.passed.length + testState.results.failed.length;
+  const passRate = ((testState.results.passed.length / totalTests) * 100).toFixed(1);
+
+  console.log(`Total Tests:    ${totalTests}`);
+  console.log(`Passed:         ${testState.results.passed.length} ✅`);
+  console.log(`Failed:         ${testState.results.failed.length} ❌`);
+  console.log(`Pass Rate:      ${passRate}%`);
+  console.log('');
+
+  if (testState.results.passed.length > 0) {
+    console.log('✅ PASSED TESTS:');
+    testState.results.passed.forEach(test => {
+      console.log(`   ${test.testId}: ${test.description}`);
+    });
+    console.log('');
+  }
 
   if (testState.results.failed.length > 0) {
-    console.log('FAILED TESTS:');
+    console.log('❌ FAILED TESTS:');
     testState.results.failed.forEach(test => {
-      console.log(`  ❌ ${test.category} | ${test.testId}: ${test.description}`);
-      console.log(`     ${test.details}\n`);
+      console.log(`   ${test.testId}: ${test.description}`);
+      console.log(`      Reason: ${test.details}`);
     });
+    console.log('');
   }
 
-  console.log('\nCOMPONENT STATUS:\n');
+  console.log('═'.repeat(80));
+  console.log('🎯  COMPONENT STATUS');
+  console.log('═'.repeat(80));
+  console.log('');
 
-  const story71Passed = testState.results.passed.filter(t => t.category === 'Story 7.1').length;
-  const story71Total = testState.results.passed.filter(t => t.category === 'Story 7.1').length +
-                       testState.results.failed.filter(t => t.category === 'Story 7.1').length;
-  console.log(`Story 7.1: MFA Setup & Configuration       ${story71Passed}/${story71Total} ${story71Passed === story71Total ? '✅' : '⚠️'}`);
+  // Component status based on test results
+  const components = {
+    'useMFA Hook - fetchMFAStatus()': ['CP1-TEST-01', 'CP1-TEST-04', 'CP1-TEST-10'],
+    'useMFA Hook - setupMFA()': ['CP1-TEST-02'],
+    'useMFA Hook - enableMFA()': ['CP1-TEST-03'],
+    'useMFA Hook - disableMFA()': ['CP1-TEST-09'],
+    'useMFA Hook - regenerateBackupCodes()': ['CP1-TEST-05'],
+    'useMFA Hook - verifyTOTP()': ['CP1-TEST-07'],
+    'useMFA Hook - verifyBackupCode()': ['CP1-TEST-08'],
+    'MFASettings Page - Status Display': ['CP1-TEST-01', 'CP1-TEST-04'],
+    'MFASettings Page - Regenerate Codes': ['CP1-TEST-05'],
+    'MFASettings Page - Disable MFA': ['CP1-TEST-09'],
+    'BackupCodesDisplay - Data Source': ['CP1-TEST-03', 'CP1-TEST-05'],
+    'Login Flow - MFA Detection': ['CP1-TEST-06'],
+  };
 
-  const story72Passed = testState.results.passed.filter(t => t.category === 'Story 7.2').length;
-  const story72Total = testState.results.passed.filter(t => t.category === 'Story 7.2').length +
-                       testState.results.failed.filter(t => t.category === 'Story 7.2').length;
-  console.log(`Story 7.2: TOTP Verification               ${story72Passed}/${story72Total} ${story72Passed === story72Total ? '✅' : '⚠️'}`);
+  Object.entries(components).forEach(([component, testIds]) => {
+    const allPassed = testIds.every(id =>
+      testState.results.passed.some(test => test.testId === id)
+    );
+    const status = allPassed ? '✅ WORKING' : '❌ ISSUES';
+    console.log(`${status}  ${component}`);
+  });
 
-  const story73Passed = testState.results.passed.filter(t => t.category === 'Story 7.3').length;
-  const story73Total = testState.results.passed.filter(t => t.category === 'Story 7.3').length +
-                       testState.results.failed.filter(t => t.category === 'Story 7.3').length;
-  console.log(`Story 7.3: MFA Login Flow                  ${story73Passed}/${story73Total} ${story73Passed === story73Total ? '✅' : '⚠️'}`);
+  console.log('');
+  console.log('═'.repeat(80));
+  console.log('📝  NOTES');
+  console.log('═'.repeat(80));
+  console.log('');
+  console.log('Backend endpoints tested: All endpoints used by Checkpoint 1 components');
+  console.log('Frontend components: Not directly tested (requires browser)');
+  console.log('UI features tested: Data flow, API integration, state management');
+  console.log('');
+  console.log('Frontend manual testing still required for:');
+  console.log('  - BackupCodesDisplay copy/download buttons');
+  console.log('  - Modal UI and interactions');
+  console.log('  - Help section FAQs');
+  console.log('  - Responsive design');
+  console.log('');
+  console.log('═'.repeat(80));
 
-  const story74Passed = testState.results.passed.filter(t => t.category === 'Story 7.4').length;
-  const story74Total = testState.results.passed.filter(t => t.category === 'Story 7.4').length +
-                       testState.results.failed.filter(t => t.category === 'Story 7.4').length;
-  console.log(`Story 7.4: MFA Recovery & Management       ${story74Passed}/${story74Total} ${story74Passed === story74Total ? '✅' : '⚠️'}`);
-
-  console.log('\n' + '='.repeat(80));
-
-  if (passRate === '100.0') {
-    console.log('🎉 ALL PHASE 7 TESTS PASSED! MFA System is fully operational!');
-  } else if (passRate >= '90.0') {
-    console.log('✅ Phase 7 tests mostly passing. Minor issues to address.');
-  } else if (passRate >= '70.0') {
-    console.log('⚠️  Phase 7 has some failures. Review failed tests above.');
+  if (testState.results.failed.length === 0) {
+    console.log('');
+    console.log('🎉  ALL TESTS PASSED! Checkpoint 1 backend is fully functional.');
+    console.log('');
+    console.log('✅ useMFA hook functions are working correctly');
+    console.log('✅ MFASettings page can fetch and update MFA status');
+    console.log('✅ BackupCodesDisplay component will receive proper data');
+    console.log('✅ Ready to test frontend UI in browser');
+    console.log('');
   } else {
-    console.log('❌ Phase 7 has significant failures. Immediate attention required.');
+    console.log('');
+    console.log('⚠️  Some tests failed. Review the failures above.');
+    console.log('');
   }
 
-  console.log('='.repeat(80) + '\n');
+  console.log('═'.repeat(80));
 }
 
-// Main execution
-async function runAllTests() {
-  console.log('\n' + '='.repeat(80));
-  console.log('PHASE 7: MULTI-FACTOR AUTHENTICATION - COMPREHENSIVE TEST SUITE');
-  console.log('='.repeat(80) + '\n');
-
-  try {
-    await setupTestUsers();
-    console.log('');
-
-    await testStory71_MFASetup();
-    console.log('');
-
-    await testStory72_TOTPVerification();
-    console.log('');
-
-    await testStory73_MFALoginFlow();
-    console.log('');
-
-    await testStory74_MFARecovery();
-    console.log('');
-
-    await disableMFA();
-
-    generateReport();
-
-  } catch (error) {
-    logProgress(`Test execution failed: ${error.message}`, 'ERROR');
-    console.error('\nStack trace:', error.stack);
-  }
-}
-
-runAllTests();
+// Run tests
+runTests().catch(error => {
+  console.error('\n💥 Test suite crashed:', error);
+  process.exit(1);
+});

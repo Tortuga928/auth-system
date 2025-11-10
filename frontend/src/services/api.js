@@ -33,25 +33,10 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response) {
-      // Server responded with error
-      const { status, data } = error.response;
-
-      if (status === 401) {
-        // Unauthorized - clear token and redirect to login
-        localStorage.removeItem('authToken');
-        window.location.href = '/login';
-      }
-
-      // Return error message from server
-      return Promise.reject(data.error || 'An error occurred');
-    } else if (error.request) {
-      // Request made but no response
-      return Promise.reject('No response from server');
-    } else {
-      // Error setting up request
-      return Promise.reject(error.message);
-    }
+    // Pass through the full error object so components can handle it
+    // This allows proper error message extraction in hooks
+    // 401 errors will be handled by individual components, not globally redirected
+    return Promise.reject(error);
   }
 );
 

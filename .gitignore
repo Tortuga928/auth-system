@@ -58,3 +58,14 @@ sessions/
 # Logs
 logs/
 *.log
+
+# Testing & debugging (temporary files)
+*.backup
+*.debug.*
+fix-*.py
+fix-*.patch
+fix-*.txt
+test-checkpoint*.js
+test-fresh-*.js
+scripts/atomic-edit.sh
+scripts/safe-edit.sh
