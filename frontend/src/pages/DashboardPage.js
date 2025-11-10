@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiService from '../services/api';
+import AvatarUpload from '../components/AvatarUpload';
 
 function DashboardPage() {
   const [profileData, setProfileData] = useState(null);
@@ -31,6 +32,17 @@ function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle avatar upload success
+  const handleAvatarUploadSuccess = (newAvatarUrl) => {
+    setProfileData((prev) => ({
+      ...prev,
+      user: {
+        ...prev.user,
+        avatarUrl: newAvatarUrl,
+      },
+    }));
   };
 
   // Loading state
@@ -75,22 +87,38 @@ function DashboardPage() {
         <div className="card-body">
           <h2 className="card-title">Profile</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-            {/* Avatar placeholder */}
+            {/* Avatar */}
             <div
               style={{
                 width: '80px',
                 height: '80px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: user.avatarUrl
+                  ? 'transparent'
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'white',
                 fontSize: '2rem',
                 fontWeight: 'bold',
+                overflow: 'hidden',
+                border: '2px solid #ddd',
               }}
             >
-              {user.username.charAt(0).toUpperCase()}
+              {user.avatarUrl ? (
+                <img
+                  src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}${user.avatarUrl}`}
+                  alt={`${user.username}'s avatar`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                user.username.charAt(0).toUpperCase()
+              )}
             </div>
 
             {/* User info */}
@@ -120,6 +148,12 @@ function DashboardPage() {
               </Link>
             </div>
           </div>
+
+          {/* Avatar Upload Section */}
+          <AvatarUpload
+            currentAvatarUrl={user.avatarUrl}
+            onUploadSuccess={handleAvatarUploadSuccess}
+          />
         </div>
       </div>
 

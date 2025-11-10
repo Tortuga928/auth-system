@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { uploadAvatar } = require('../middleware/upload');
 const userController = require('../controllers/userController');
 
 /**
@@ -43,5 +44,25 @@ router.get('/activity', authenticate, userController.getActivity);
  * If email changes, email_verified is set to false
  */
 router.put('/profile', authenticate, userController.updateProfile);
+
+/**
+ * @route   POST /api/user/avatar
+ * @desc    Upload user avatar
+ * @body    multipart/form-data with 'avatar' file
+ * @access  Private
+ *
+ * Accepts: JPEG, PNG, GIF, WebP (max 5MB)
+ * Processing: Resized to 300x300, optimized
+ */
+router.post('/avatar', authenticate, uploadAvatar, userController.uploadAvatar);
+
+/**
+ * @route   DELETE /api/user/avatar
+ * @desc    Delete user avatar
+ * @access  Private
+ *
+ * Removes avatar from database and deletes file
+ */
+router.delete('/avatar', authenticate, userController.deleteAvatar);
 
 module.exports = router;

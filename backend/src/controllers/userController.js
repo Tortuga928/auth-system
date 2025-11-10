@@ -55,6 +55,7 @@ const getProfile = async (req, res) => {
           email: user.email,
           role: user.role,
           emailVerified: user.email_verified,
+          avatarUrl: user.avatar_url,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
         },
@@ -229,8 +230,164 @@ const updateProfile = async (req, res) => {
   }
 };
 
+/**
+ * Upload user avatar
+ *
+ * POST /api/user/avatar
+ * Body: multipart/form-data with 'avatar' file
+ */
+const uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      });
+    }
+
+    const sharp = require('sharp');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Process image with sharp
+    const filename = req.file.filename;
+    const filepath = req.file.path;
+    const processedFilename = `processed-${filename}`;
+    const processedPath = path.join(path.dirname(filepath), processedFilename);
+
+    // Resize and optimize image (300x300, square)
+    await sharp(filepath)
+      .resize(300, 300, {
+        fit: 'cover',
+        position: 'center',
+      })
+      .jpeg({ quality: 85 })
+      .toFile(processedPath);
+
+    // Delete original file
+    fs.unlinkSync(filepath);
+
+    // Generate avatar URL
+    const avatarUrl = `/uploads/avatars/${processedFilename}`;
+
+    // Get user's current avatar for deletion
+    const user = await User.findById(userId);
+    const oldAvatarUrl = user.avatar_url;
+
+    // Update user avatar_url in database
+    await User.update(userId, { avatar_url: avatarUrl });
+
+    // Delete old avatar file if it exists
+    if (oldAvatarUrl && oldAvatarUrl.startsWith('/uploads/avatars/')) {
+      const oldFilename = oldAvatarUrl.split('/').pop();
+      const oldFilepath = path.join(path.dirname(filepath), oldFilename);
+      if (fs.existsSync(oldFilepath)) {
+        fs.unlinkSync(oldFilepath);
+      }
+    }
+
+    // Log activity
+    const { logActivity } = require('../services/activityLogService');
+    await logActivity({
+      userId,
+      action: 'avatar_uploaded',
+      description: 'User uploaded new avatar',
+      req,
+    });
+
+    res.json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      data: {
+        avatarUrl,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Upload avatar error:', error);
+
+    // Delete uploaded file if processing failed
+    if (req.file && req.file.path) {
+      const fs = require('fs');
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload avatar',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Delete user avatar
+ *
+ * DELETE /api/user/avatar
+ */
+const deleteAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user's current avatar
+    const user = await User.findById(userId);
+
+    if (!user.avatar_url) {
+      return res.status(404).json({
+        success: false,
+        error: 'No avatar to delete',
+      });
+    }
+
+    const avatarUrl = user.avatar_url;
+
+    // Remove avatar from database
+    await User.update(userId, { avatar_url: null });
+
+    // Delete avatar file
+    if (avatarUrl.startsWith('/uploads/avatars/')) {
+      const path = require('path');
+      const fs = require('fs');
+      const { uploadsDir } = require('../middleware/upload');
+      const filename = avatarUrl.split('/').pop();
+      const filepath = path.join(uploadsDir, filename);
+
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    }
+
+    // Log activity
+    const { logActivity } = require('../services/activityLogService');
+    await logActivity({
+      userId,
+      action: 'avatar_deleted',
+      description: 'User deleted avatar',
+      req,
+    });
+
+    res.json({
+      success: true,
+      message: 'Avatar deleted successfully',
+    });
+  } catch (error) {
+    console.error('❌ Delete avatar error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete avatar',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   getActivity,
   updateProfile,
+  uploadAvatar,
+  deleteAvatar,
 };

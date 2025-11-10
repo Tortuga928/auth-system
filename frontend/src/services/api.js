@@ -62,6 +62,10 @@ const apiService = {
     getProfile: () => api.get('/api/user/profile'),
     updateProfile: (data) => api.put('/api/user/profile', data),
     changePassword: (data) => api.post('/api/user/change-password', data),
+    uploadAvatar: (formData) => api.post('/api/user/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    deleteAvatar: () => api.delete('/api/user/avatar'),
   },
 
   // OAuth endpoints

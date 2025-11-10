@@ -23,8 +23,10 @@ const testEmailRoutes = require('./routes/test-email');
 // Create Express app
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure helmet to allow avatars
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 // CORS middleware
 app.use(cors({
@@ -42,6 +44,14 @@ if (config.env === 'development') {
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Static file serving for uploaded avatars with CORS
+const path = require('path');
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', config.cors.origin);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Session middleware (required for Passport)
 app.use(session(config.session));

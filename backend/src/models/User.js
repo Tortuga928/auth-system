@@ -69,7 +69,7 @@ class User {
    */
   static async findById(id) {
     const query = `
-      SELECT id, username, email, role, email_verified, created_at, updated_at
+      SELECT id, username, email, role, email_verified, avatar_url, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -151,6 +151,7 @@ class User {
       'email_verification_expires',
       'password_reset_token',
       'password_reset_expires',
+      'avatar_url',
     ];
     const fields = [];
     const values = [];
