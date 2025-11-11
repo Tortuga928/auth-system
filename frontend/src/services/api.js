@@ -66,6 +66,7 @@ const apiService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
     deleteAvatar: () => api.delete('/api/user/avatar'),
+    getActivity: (page = 1, limit = 25) => api.get(`/api/user/activity?page=${page}&limit=${limit}`),
   },
 
   // OAuth endpoints
