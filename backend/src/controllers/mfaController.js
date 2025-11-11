@@ -6,10 +6,12 @@
 
 const MFASecret = require('../models/MFASecret');
 const User = require('../models/User');
+const Session = require('../models/Session');
 const bcrypt = require('bcrypt');
 const { verifyMFAChallengeToken, generateTokenPair } = require('../utils/jwt');
 const crypto = require('crypto');
 const { sendMFAResetEmail } = require('../services/emailService');
+const { extractSessionMetadata } = require('../utils/sessionUtils');
 
 /**
  * POST /api/auth/mfa/setup
@@ -426,6 +428,17 @@ const verifyTOTP = async (req, res) => {
       role: user.role,
     });
 
+    // Extract session metadata from request
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Create session record with metadata
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      ...sessionMetadata,
+    });
+
     return res.status(200).json({
       success: true,
       message: 'MFA verification successful',
@@ -552,6 +565,17 @@ const verifyBackupCode = async (req, res) => {
       id: user.id,
       email: user.email,
       role: user.role,
+    });
+
+    // Extract session metadata from request
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Create session record with metadata
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      ...sessionMetadata,
     });
 
     // Count remaining backup codes

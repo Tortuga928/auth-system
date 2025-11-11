@@ -6,6 +6,8 @@
 
 const { verifyAccessToken, extractTokenFromHeader } = require('../utils/jwt');
 const User = require('../models/User');
+const Session = require('../models/Session');
+const { getClientIP } = require('../utils/sessionUtils');
 
 /**
  * Authentication middleware
@@ -77,6 +79,14 @@ const authenticate = async (req, res, next) => {
     // Attach full decoded token for additional info if needed
     req.token = decoded;
 
+    // Update session activity (non-blocking)
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'] || '';
+    Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
+      console.error('Failed to update session activity:', err);
+      // Don't fail the request if session update fails
+    });
+
     // Continue to next middleware
     next();
   } catch (error) {
@@ -140,6 +150,13 @@ const optionalAuth = async (req, res, next) => {
         email_verified: user.email_verified,
       };
       req.token = decoded;
+
+      // Update session activity (non-blocking)
+      const ipAddress = getClientIP(req);
+      const userAgent = req.headers['user-agent'] || '';
+      Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
+        console.error('Failed to update session activity:', err);
+      });
     } else {
       req.user = null;
     }

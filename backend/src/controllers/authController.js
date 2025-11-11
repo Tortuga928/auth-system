@@ -6,10 +6,12 @@
 
 const User = require('../models/User');
 const MFASecret = require('../models/MFASecret');
+const Session = require('../models/Session');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateTokenPair, verifyRefreshToken, generateAccessToken, generateMFAChallengeToken } = require('../utils/jwt');
 const tokenService = require('../utils/tokenService');
 const emailService = require('../services/emailService');
+const { extractSessionMetadata } = require('../utils/sessionUtils');
 
 /**
  * Register a new user
@@ -219,6 +221,17 @@ const login = async (req, res, next) => {
       id: user.id,
       email: user.email,
       role: user.role,
+    });
+
+    // Extract session metadata from request
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Create session record with metadata
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      ...sessionMetadata,
     });
 
     // Return success response
