@@ -9,7 +9,14 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if table already exists (idempotent migration)
+  const exists = await knex.schema.hasTable('user_activity_logs');
+  if (exists) {
+    console.log('✓ user_activity_logs table already exists, skipping creation');
+    return;
+  }
+
   return knex.schema.createTable('user_activity_logs', (table) => {
     // Primary key
     table.increments('id').primary();

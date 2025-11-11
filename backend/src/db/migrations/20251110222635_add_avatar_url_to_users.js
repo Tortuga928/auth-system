@@ -9,7 +9,14 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
+exports.up = async function(knex) {
+  // Check if column already exists (idempotent migration)
+  const hasColumn = await knex.schema.hasColumn('users', 'avatar_url');
+  if (hasColumn) {
+    console.log('✓ avatar_url column already exists in users table, skipping');
+    return;
+  }
+
   return knex.schema.alterTable('users', (table) => {
     table.string('avatar_url', 255).nullable();
   });
