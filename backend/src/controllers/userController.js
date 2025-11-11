@@ -53,6 +53,8 @@ const getProfile = async (req, res) => {
           id: user.id,
           username: user.username,
           email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
           role: user.role,
           emailVerified: user.email_verified,
           avatarUrl: user.avatar_url,
@@ -136,22 +138,51 @@ const getActivity = async (req, res) => {
  * Update user profile
  *
  * PUT /api/user/profile
- * Body: { username, email }
+ * Body: { username, email, first_name, last_name, password }
  */
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, email } = req.body;
+    const { username, email, first_name, last_name, password } = req.body;
 
-    // Validate at least one field provided
-    if (!username && !email) {
+    // Password is required for security
+    if (!password) {
       return res.status(400).json({
         success: false,
-        error: 'At least one field (username or email) is required',
+        error: 'Password is required to update your profile',
+      });
+    }
+
+    // Verify password before allowing changes
+    const bcrypt = require('bcrypt');
+    const user = await User.findByIdWithPassword(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid password',
+      });
+    }
+
+    // Validate at least one field provided (excluding password)
+    if (!username && !email && first_name === undefined && last_name === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one field (username, email, first_name, or last_name) must be provided',
       });
     }
 
     const updates = {};
+    const originalEmail = user.email;
 
     // Validate username if provided
     if (username) {
@@ -196,7 +227,19 @@ const updateProfile = async (req, res) => {
 
       updates.email = email;
       // If email changed, mark as unverified
-      updates.email_verified = false;
+      if (email !== originalEmail) {
+        updates.email_verified = false;
+      }
+    }
+
+    // Update first_name if provided (can be empty string to clear)
+    if (first_name !== undefined) {
+      updates.first_name = first_name;
+    }
+
+    // Update last_name if provided (can be empty string to clear)
+    if (last_name !== undefined) {
+      updates.last_name = last_name;
     }
 
     // Update user
@@ -206,6 +249,14 @@ const updateProfile = async (req, res) => {
     const { logProfileUpdate } = require('../services/activityLogService');
     await logProfileUpdate(userId, Object.keys(updates), req);
 
+    // Send email verification if email changed
+    const emailChanged = email && email !== originalEmail;
+    if (emailChanged) {
+      // TODO: Send verification email to new address
+      // This will be implemented when email service is available
+      console.log('📧 Email changed - verification email should be sent to:', email);
+    }
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
@@ -214,10 +265,13 @@ const updateProfile = async (req, res) => {
           id: updatedUser.id,
           username: updatedUser.username,
           email: updatedUser.email,
+          first_name: updatedUser.first_name,
+          last_name: updatedUser.last_name,
           role: updatedUser.role,
           emailVerified: updatedUser.email_verified,
           updatedAt: updatedUser.updated_at,
         },
+        emailChanged,
       },
     });
   } catch (error) {
