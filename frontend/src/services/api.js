@@ -67,6 +67,7 @@ const apiService = {
     }),
     deleteAvatar: () => api.delete('/api/user/avatar'),
     getActivity: (page = 1, limit = 25) => api.get(`/api/user/activity?page=${page}&limit=${limit}`),
+    deleteAccount: (data) => api.delete('/api/user/account', { data }),
   },
 
   // OAuth endpoints

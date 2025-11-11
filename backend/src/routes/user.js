@@ -65,4 +65,27 @@ router.post('/avatar', authenticate, uploadAvatar, userController.uploadAvatar);
  */
 router.delete('/avatar', authenticate, userController.deleteAvatar);
 
+/**
+ * @route   POST /api/user/change-password
+ * @desc    Change user password
+ * @body    { currentPassword, newPassword }
+ * @access  Private
+ *
+ * Requires current password for verification
+ * New password must meet strength requirements
+ */
+router.post('/change-password', authenticate, userController.changePassword);
+
+/**
+ * @route   DELETE /api/user/account
+ * @desc    Delete user account permanently
+ * @body    { password }
+ * @access  Private
+ *
+ * Requires password confirmation
+ * Deletes all user data including avatar
+ * This action cannot be undone
+ */
+router.delete('/account', authenticate, userController.deleteAccount);
+
 module.exports = router;

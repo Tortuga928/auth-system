@@ -438,10 +438,177 @@ const deleteAvatar = async (req, res) => {
   }
 };
 
+/**
+ * Change user password
+ *
+ * POST /api/user/change-password
+ * Body: { currentPassword, newPassword }
+ */
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate required fields
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current password and new password are required',
+      });
+    }
+
+    // Validate new password strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character',
+      });
+    }
+
+    // Check if new password is same as current
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'New password must be different from current password',
+      });
+    }
+
+    // Get user with password hash
+    const bcrypt = require('bcrypt');
+    const user = await User.findByIdWithPassword(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password_hash);
+
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Current password is incorrect',
+      });
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await User.update(userId, { password_hash: newPasswordHash });
+
+    // Log activity
+    const { logActivity } = require('../services/activityLogService');
+    await logActivity({
+      userId,
+      action: 'password_changed',
+      description: 'User changed password',
+      req,
+    });
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to change password',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Delete user account
+ *
+ * DELETE /api/user/account
+ * Body: { password }
+ */
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { password } = req.body;
+
+    // Password is required for account deletion
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password is required to delete your account',
+      });
+    }
+
+    // Get user with password hash
+    const bcrypt = require('bcrypt');
+    const user = await User.findByIdWithPassword(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid password',
+      });
+    }
+
+    // Log activity before deletion
+    const { logActivity } = require('../services/activityLogService');
+    await logActivity({
+      userId,
+      action: 'account_deleted',
+      description: 'User deleted their account',
+      req,
+    });
+
+    // Delete user avatar if exists
+    if (user.avatar_url && user.avatar_url.startsWith('/uploads/avatars/')) {
+      const path = require('path');
+      const fs = require('fs');
+      const { uploadsDir } = require('../middleware/upload');
+      const filename = user.avatar_url.split('/').pop();
+      const filepath = path.join(uploadsDir, filename);
+
+      if (fs.existsSync(filepath)) {
+        fs.unlinkSync(filepath);
+      }
+    }
+
+    // Delete user from database
+    await User.delete(userId);
+
+    res.json({
+      success: true,
+      message: 'Account deleted successfully',
+    });
+  } catch (error) {
+    console.error('❌ Delete account error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete account',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   getProfile,
   getActivity,
   updateProfile,
   uploadAvatar,
   deleteAvatar,
+  changePassword,
+  deleteAccount,
 };
