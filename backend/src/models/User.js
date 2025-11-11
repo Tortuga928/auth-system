@@ -69,7 +69,24 @@ class User {
    */
   static async findById(id) {
     const query = `
-      SELECT id, username, email, role, email_verified, avatar_url, created_at, updated_at
+      SELECT id, username, email, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
+      FROM users
+      WHERE id = $1
+    `;
+
+    const result = await db.query(query, [id]);
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Find user by ID with password hash (for authentication)
+   *
+   * @param {number} id - User ID
+   * @returns {Promise<Object|null>} User object with password_hash or null
+   */
+  static async findByIdWithPassword(id) {
+    const query = `
+      SELECT id, username, email, password_hash, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -145,6 +162,8 @@ class User {
       'username',
       'email',
       'password_hash',
+      'first_name',
+      'last_name',
       'role',
       'email_verified',
       'email_verification_token',
@@ -180,7 +199,7 @@ class User {
       UPDATE users
       SET ${fields.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, username, email, role, email_verified, created_at, updated_at
+      RETURNING id, username, email, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
     `;
 
     const result = await db.query(query, values);
