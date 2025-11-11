@@ -12,7 +12,16 @@ const fs = require('fs');
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../../uploads/avatars');
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (error) {
+    // In production, directory should be created by Dockerfile
+    // Log warning but don't crash if we can't create it
+    if (error.code !== 'EACCES') {
+      throw error; // Re-throw if it's not a permission error
+    }
+    console.warn('⚠️  Could not create uploads directory (may already exist or need Docker volume)');
+  }
 }
 
 // Configure storage

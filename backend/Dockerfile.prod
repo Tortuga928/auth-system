@@ -28,6 +28,9 @@ WORKDIR /app
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app .
 
+# Create uploads directory with proper permissions (must be done before USER switch)
+RUN mkdir -p /app/uploads/avatars && chown -R nodejs:nodejs /app/uploads
+
 # Switch to non-root user
 USER nodejs
 
