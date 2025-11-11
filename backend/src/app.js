@@ -18,6 +18,7 @@ const oauthRoutes = require('./routes/oauth');
 const linkedProvidersRoutes = require('./routes/linkedProviders');
 const mfaRoutes = require('./routes/mfa');
 const userRoutes = require('./routes/user');
+const sessionRoutes = require('./routes/session');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -66,6 +67,7 @@ app.use('/api/auth', linkedProvidersRoutes);
 app.use('/api/oauth', oauthRoutes);
 app.use('/api/auth/mfa', mfaRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/sessions', sessionRoutes);
 
 // Test routes (development only)
 if (config.env === 'development') {

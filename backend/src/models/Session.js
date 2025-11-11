@@ -5,7 +5,7 @@
  * Handles CRUD operations for user sessions with device and location tracking
  */
 
-const db = require('../db/connection');
+const db = require('../db');
 
 class Session {
   /**

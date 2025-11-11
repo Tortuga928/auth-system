@@ -64,6 +64,8 @@ function generateRefreshToken(user) {
   const payload = {
     id: user.id,
     type: 'refresh',
+    // Add unique identifier to prevent duplicate tokens for same user
+    jti: `${user.id}-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
   };
 
   return jwt.sign(payload, JWT_SECRET, {
