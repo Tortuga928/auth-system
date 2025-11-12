@@ -51,6 +51,17 @@ const config = {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
+    // Session timeout settings
+    timeout: {
+      // Inactivity timeout - session expires if no activity for this duration
+      inactivity: parseInt(process.env.SESSION_INACTIVITY_TIMEOUT, 10) || 30 * 60 * 1000, // 30 minutes
+      // Absolute timeout - session expires after this duration regardless of activity
+      absolute: parseInt(process.env.SESSION_ABSOLUTE_TIMEOUT, 10) || 7 * 24 * 60 * 60 * 1000, // 7 days
+      // Remember me duration - extended session duration when "remember me" is checked
+      rememberMe: parseInt(process.env.SESSION_REMEMBER_ME_DURATION, 10) || 30 * 24 * 60 * 60 * 1000, // 30 days
+      // Cleanup interval - how often to run session cleanup job
+      cleanupInterval: parseInt(process.env.SESSION_CLEANUP_INTERVAL, 10) || 60 * 60 * 1000, // 1 hour
+    },
   },
 
   // OAuth

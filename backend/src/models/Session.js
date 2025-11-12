@@ -29,9 +29,10 @@ class Session {
         user_id, refresh_token, expires_at,
         ip_address, user_agent, device_name,
         browser, os, device_type, location,
-        last_activity_at, is_active
+        last_activity_at, is_active,
+        remember_me, absolute_expires_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -48,6 +49,8 @@ class Session {
       sessionData.location || null,
       new Date(), // last_activity_at
       true, // is_active
+      sessionData.remember_me || false,
+      sessionData.absolute_expires_at || null,
     ];
 
     const result = await db.query(query, values);
@@ -218,6 +221,23 @@ class Session {
     `;
 
     const result = await db.query(query, [cutoffDate]);
+    return result.rowCount;
+  }
+
+  /**
+   * Cleanup sessions past absolute timeout
+   * Story 9.4: Removes sessions that have exceeded their absolute expiration time
+   * @returns {Promise<number>} Number of sessions deleted
+   */
+  static async cleanupAbsoluteExpired() {
+    const query = `
+      DELETE FROM sessions
+      WHERE absolute_expires_at IS NOT NULL
+        AND absolute_expires_at < NOW()
+      RETURNING id
+    `;
+
+    const result = await db.query(query);
     return result.rowCount;
   }
 

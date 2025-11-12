@@ -4,6 +4,7 @@
  * Handles user registration, login, and token refresh
  */
 
+const config = require('../config');
 const User = require('../models/User');
 const MFASecret = require('../models/MFASecret');
 const Session = require('../models/Session');
@@ -162,7 +163,7 @@ const register = async (req, res, next) => {
  */
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     // Validate required fields
     if (!email || !password) {
@@ -280,11 +281,22 @@ const login = async (req, res, next) => {
       role: user.role,
     });
 
+    // Calculate session expiration based on rememberMe flag
+    const now = Date.now();
+    const sessionDuration = rememberMe
+      ? config.session.timeout.rememberMe  // 30 days if "remember me"
+      : config.session.timeout.absolute;   // 7 days default
+
+    const expiresAt = new Date(now + sessionDuration);
+    const absoluteExpiresAt = new Date(now + sessionDuration);
+
     // Create session record with metadata
     await Session.create({
       user_id: user.id,
       refresh_token: tokens.refreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expires_at: expiresAt,
+      remember_me: rememberMe || false,
+      absolute_expires_at: absoluteExpiresAt,
       ...sessionMetadata,
     });
 

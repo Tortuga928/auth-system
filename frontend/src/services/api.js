@@ -33,6 +33,29 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle SESSION_TIMEOUT specifically (Story 9.4)
+    if (error.response?.status === 401 && error.response?.data?.error === 'SESSION_TIMEOUT') {
+      // Clear auth token
+      localStorage.removeItem('authToken');
+
+      // Get timeout reason for user-friendly message
+      const reason = error.response.data.reason;
+      const message = reason === 'inactivity_timeout'
+        ? 'Your session has expired due to inactivity. Please log in again.'
+        : 'Your session has expired. Please log in again.';
+
+      // Store error message for login page
+      sessionStorage.setItem('sessionTimeoutMessage', message);
+
+      // Redirect to login with return URL
+      const currentPath = window.location.pathname;
+      if (currentPath !== '/login') {
+        window.location.href = `/login?return=${encodeURIComponent(currentPath)}`;
+      }
+
+      return Promise.reject(error);
+    }
+
     // Pass through the full error object so components can handle it
     // This allows proper error message extraction in hooks
     // 401 errors will be handled by individual components, not globally redirected
