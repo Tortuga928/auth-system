@@ -259,6 +259,68 @@ const requireEmailVerified = (req, res, next) => {
   next();
 };
 
+/**
+ * Admin authorization middleware
+ *
+ * Requires authenticate() middleware to be applied first
+ * Checks if user has admin or super_admin role
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+const isAdmin = (req, res, next) => {
+  // Ensure user is authenticated
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+  }
+
+  // Check if user has admin or super_admin role
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required',
+      error: 'This action requires administrator privileges',
+    });
+  }
+
+  next();
+};
+
+/**
+ * Super Admin authorization middleware
+ *
+ * Requires authenticate() middleware to be applied first
+ * Checks if user has super_admin role (highest privilege level)
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+const isSuperAdmin = (req, res, next) => {
+  // Ensure user is authenticated
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+  }
+
+  // Check if user has super_admin role
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Super Admin access required',
+      error: 'This action requires super administrator privileges',
+    });
+  }
+
+  next();
+};
+
 const { checkSessionTimeout } = require('./sessionTimeout');
 
 module.exports = {
@@ -266,5 +328,7 @@ module.exports = {
   optionalAuth,
   requireRole,
   requireEmailVerified,
+  isAdmin,
+  isSuperAdmin,
   checkSessionTimeout,
 };
