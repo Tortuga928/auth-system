@@ -1,0 +1,160 @@
+/**
+ * Admin Routes
+ *
+ * Routes for admin panel - user management, system monitoring, configuration
+ * All routes require admin or super_admin role
+ */
+
+const express = require('express');
+const router = express.Router();
+const { authenticate, isAdmin, isSuperAdmin } = require('../middleware/auth');
+const adminController = require('../controllers/adminController');
+
+// Apply authentication to all admin routes
+router.use(authenticate);
+
+/**
+ * @route   GET /api/admin/users
+ * @desc    Get all users with pagination and filtering
+ * @query   page (default: 1), pageSize (default: 20), role, status, search
+ * @access  Admin
+ *
+ * Returns paginated list of users with filtering options
+ */
+router.get('/users', isAdmin, adminController.getUsers);
+
+/**
+ * @route   GET /api/admin/users/:id
+ * @desc    Get user details by ID
+ * @param   id - User ID
+ * @access  Admin
+ *
+ * Returns full user details including profile, sessions, activity
+ */
+router.get('/users/:id', isAdmin, adminController.getUserById);
+
+/**
+ * @route   POST /api/admin/users
+ * @desc    Create new user
+ * @body    { username, email, password, role }
+ * @access  Admin
+ *
+ * Creates new user with specified role
+ * Email verification can be bypassed by admin
+ */
+router.post('/users', isAdmin, adminController.createUser);
+
+/**
+ * @route   PUT /api/admin/users/:id
+ * @desc    Update user
+ * @param   id - User ID
+ * @body    { username?, email?, role?, status? }
+ * @access  Admin
+ *
+ * Updates user profile, role, or status
+ */
+router.put('/users/:id', isAdmin, adminController.updateUser);
+
+/**
+ * @route   DELETE /api/admin/users/:id
+ * @desc    Delete/deactivate user
+ * @param   id - User ID
+ * @access  Admin
+ *
+ * Soft delete (sets is_active = false)
+ * Hard delete available for super_admin only
+ */
+router.delete('/users/:id', isAdmin, adminController.deleteUser);
+
+/**
+ * @route   PUT /api/admin/users/:id/role
+ * @desc    Update user role
+ * @param   id - User ID
+ * @body    { role: 'user'|'admin'|'super_admin' }
+ * @access  Admin (super_admin for granting super_admin)
+ *
+ * Changes user role
+ * Only super_admin can grant super_admin role
+ */
+router.put('/users/:id/role', isAdmin, adminController.updateUserRole);
+
+/**
+ * @route   PUT /api/admin/users/:id/status
+ * @desc    Update user status (active/inactive/suspended)
+ * @param   id - User ID
+ * @body    { is_active: boolean }
+ * @access  Admin
+ *
+ * Activate or deactivate user account
+ */
+router.put('/users/:id/status', isAdmin, adminController.updateUserStatus);
+
+/**
+ * @route   GET /api/admin/users/search
+ * @desc    Search users by email or username
+ * @query   q - Search query
+ * @access  Admin
+ *
+ * Searches users by email or username (partial match)
+ */
+router.get('/users/search', isAdmin, adminController.searchUsers);
+
+/**
+ * @route   GET /api/admin/audit-logs
+ * @desc    Get audit logs of admin actions
+ * @query   page, pageSize, admin_id, action, start_date, end_date
+ * @access  Admin
+ *
+ * Returns paginated audit logs with filtering
+ */
+router.get('/audit-logs', isAdmin, adminController.getAuditLogs);
+
+/**
+ * @route   GET /api/admin/dashboard/stats
+ * @desc    Get dashboard statistics
+ * @access  Admin
+ *
+ * Returns:
+ * - Total users, active users, new users (today/week/month)
+ * - Admin count, suspended count
+ * - Recent activity summary
+ */
+router.get('/dashboard/stats', isAdmin, adminController.getDashboardStats);
+
+/**
+ * @route   GET /api/admin/dashboard/user-growth
+ * @desc    Get user growth statistics
+ * @query   days (default: 30)
+ * @access  Admin
+ *
+ * Returns user registration trends over specified period
+ */
+router.get('/dashboard/user-growth', isAdmin, adminController.getUserGrowth);
+
+/**
+ * @route   GET /api/admin/dashboard/activity
+ * @desc    Get recent activity summary
+ * @access  Admin
+ *
+ * Returns:
+ * - Login attempts today
+ * - Failed logins today
+ * - Active sessions now
+ * - Security events today
+ */
+router.get('/dashboard/activity', isAdmin, adminController.getActivitySummary);
+
+/**
+ * @route   GET /api/admin/dashboard/security
+ * @desc    Get security overview
+ * @access  Admin
+ *
+ * Returns:
+ * - Critical alerts count
+ * - MFA enabled percentage
+ * - Recent failed logins
+ * - Suspicious activity
+ */
+router.get('/dashboard/security', isAdmin, adminController.getSecurityOverview);
+
+module.exports = router;

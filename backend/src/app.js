@@ -20,6 +20,7 @@ const mfaRoutes = require('./routes/mfa');
 const userRoutes = require('./routes/user');
 const sessionRoutes = require('./routes/session');
 const securityRoutes = require('./routes/security');
+const adminRoutes = require('./routes/admin');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -68,6 +69,7 @@ app.use('/api/auth/mfa', mfaRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Test routes (development only)
 if (config.env === 'development') {
