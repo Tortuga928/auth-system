@@ -32,10 +32,17 @@ const getLoginHistory = async (req, res) => {
     // Get paginated login history
     const result = await LoginAttempt.getPaginated(userId, page, pageSize);
 
+    // Map field names for frontend compatibility
+    const mappedHistory = result.data.map(attempt => ({
+      ...attempt,
+      device_name: attempt.device_type || 'Unknown Device',
+      created_at: attempt.attempted_at,
+    }));
+
     return res.status(200).json({
       success: true,
       data: {
-        loginAttempts: result.data,
+        history: mappedHistory,
         pagination: result.pagination,
       },
     });
@@ -75,14 +82,12 @@ const getLoginStatistics = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        statistics: {
-          total_attempts: parseInt(stats.total_attempts, 10),
-          successful_logins: parseInt(stats.successful_logins, 10),
-          failed_logins: parseInt(stats.failed_logins, 10),
-          unique_ips: parseInt(stats.unique_ips, 10),
-          unique_devices: parseInt(stats.unique_devices, 10),
-          days_analyzed: days,
-        },
+        totalLogins: parseInt(stats.total_attempts, 10),
+        successfulLogins: parseInt(stats.successful_logins, 10),
+        failedLogins: parseInt(stats.failed_logins, 10),
+        uniqueIPs: parseInt(stats.unique_ips, 10),
+        uniqueDevices: parseInt(stats.unique_devices, 10),
+        daysAnalyzed: days,
       },
     });
   } catch (error) {
@@ -176,14 +181,14 @@ const getSecurityEventStatistics = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        statistics: {
-          total_events: parseInt(stats.total_events, 10),
-          info_count: parseInt(stats.info_count, 10),
-          warning_count: parseInt(stats.warning_count, 10),
-          critical_count: parseInt(stats.critical_count, 10),
-          unacknowledged_count: parseInt(stats.unacknowledged_count, 10),
-          days_analyzed: days,
+        totalEvents: parseInt(stats.total_events, 10),
+        byType: {
+          info: parseInt(stats.info_count, 10),
+          warning: parseInt(stats.warning_count, 10),
+          critical: parseInt(stats.critical_count, 10),
         },
+        unacknowledgedCount: parseInt(stats.unacknowledged_count, 10),
+        daysAnalyzed: days,
       },
     });
   } catch (error) {
@@ -287,7 +292,7 @@ const getUnacknowledgedCount = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        unacknowledgedCount: count,
+        count: count,
       },
     });
   } catch (error) {

@@ -98,6 +98,32 @@ const apiService = {
     getLinkedProviders: () => api.get('/api/auth/linked-providers'),
     unlinkProvider: (provider) => api.delete(`/api/auth/unlink/${provider}`),
   },
+
+  // Security endpoints (Story 9.5)
+  security: {
+    // Session management
+    getSessions: () => api.get('/api/sessions'),
+    revokeSession: (sessionId) => api.delete(`/api/sessions/${sessionId}`),
+    revokeAllOthers: () => api.post('/api/sessions/revoke-others'),
+
+    // Login history
+    getLoginHistory: (page = 1, pageSize = 25) =>
+      api.get(`/api/security/login-history?page=${page}&pageSize=${pageSize}`),
+    getLoginStats: (days = 30) =>
+      api.get(`/api/security/login-stats?days=${days}`),
+
+    // Security events
+    getSecurityEvents: (page = 1, pageSize = 25) =>
+      api.get(`/api/security/events?page=${page}&pageSize=${pageSize}`),
+    getEventStats: (days = 30) =>
+      api.get(`/api/security/event-stats?days=${days}`),
+    acknowledgeEvent: (eventId) =>
+      api.post(`/api/security/events/${eventId}/acknowledge`),
+    acknowledgeAllEvents: () =>
+      api.post('/api/security/events/acknowledge-all'),
+    getUnacknowledgedCount: () =>
+      api.get('/api/security/events/unacknowledged-count'),
+  },
 };
 
 export default apiService;

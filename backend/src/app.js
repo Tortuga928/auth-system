@@ -55,10 +55,8 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
-// Session middleware (required for Passport)
-app.use(session(config.session));
-
-// Initialize Passport.js
+// Initialize Passport.js (without global session middleware)
+// Session middleware will be applied only to OAuth routes
 initializePassport(app);
 
 // API Routes

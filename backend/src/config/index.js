@@ -40,8 +40,8 @@ const config = {
     pass: process.env.EMAIL_PASSWORD,
   },
 
-  // Session
-  session: {
+  // Express session (for Passport OAuth)
+  expressSession: {
     secret: process.env.SESSION_SECRET || 'dev-session-secret-change-in-production',
     name: 'sessionId',
     resave: false,
@@ -51,7 +51,10 @@ const config = {
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
-    // Session timeout settings
+  },
+
+  // Custom JWT session timeout settings (Story 9.4)
+  session: {
     timeout: {
       // Inactivity timeout - session expires if no activity for this duration
       inactivity: parseInt(process.env.SESSION_INACTIVITY_TIMEOUT, 10) || 30 * 60 * 1000, // 30 minutes
