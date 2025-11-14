@@ -24,6 +24,17 @@ router.use(authenticate);
 router.get('/users', isAdmin, adminController.getUsers);
 
 /**
+ * @route   GET /api/admin/users/search
+ * @desc    Search users by email or username
+ * @query   q - Search query
+ * @access  Admin
+ *
+ * Searches users by email or username (partial match)
+ * NOTE: Must come BEFORE /users/:id route to avoid matching "search" as an ID
+ */
+router.get('/users/search', isAdmin, adminController.searchUsers);
+
+/**
  * @route   GET /api/admin/users/:id
  * @desc    Get user details by ID
  * @param   id - User ID
@@ -88,16 +99,6 @@ router.put('/users/:id/role', isAdmin, adminController.updateUserRole);
  * Activate or deactivate user account
  */
 router.put('/users/:id/status', isAdmin, adminController.updateUserStatus);
-
-/**
- * @route   GET /api/admin/users/search
- * @desc    Search users by email or username
- * @query   q - Search query
- * @access  Admin
- *
- * Searches users by email or username (partial match)
- */
-router.get('/users/search', isAdmin, adminController.searchUsers);
 
 /**
  * @route   GET /api/admin/audit-logs

@@ -6,26 +6,43 @@
  */
 
 const User = require('../models/User');
+const bcrypt = require('bcrypt');
 
 /**
  * Get all users with pagination and filtering
  */
 exports.getUsers = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
-    // Full implementation in Story 10.2
+    const {
+      page = 1,
+      pageSize = 20,
+      role,
+      status,
+      search,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    // Convert status to is_active boolean
+    let is_active;
+    if (status === 'active') is_active = true;
+    if (status === 'inactive') is_active = false;
+
+    const options = {
+      page: parseInt(page, 10),
+      pageSize: parseInt(pageSize, 10),
+      role,
+      is_active,
+      search,
+      sortBy,
+      sortOrder,
+    };
+
+    const result = await User.findAll(options);
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get users (stub)',
-      data: {
-        users: [],
-        pagination: {
-          page: 1,
-          pageSize: 20,
-          totalCount: 0,
-          totalPages: 0,
-        },
-      },
+      data: result,
     });
   } catch (error) {
     console.error('Get users error:', error);
@@ -42,13 +59,20 @@ exports.getUsers = async (req, res) => {
  */
 exports.getUserById = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { id } = req.params;
+
+    const user = await User.findByIdWithDetails(parseInt(id, 10));
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get user by ID (stub)',
-      data: {
-        user: null,
-      },
+      data: { user },
     });
   } catch (error) {
     console.error('Get user by ID error:', error);
@@ -65,16 +89,68 @@ exports.getUserById = async (req, res) => {
  */
 exports.createUser = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { username, email, password, role = 'user' } = req.body;
+
+    // Validation
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields',
+        error: 'username, email, and password are required',
+      });
+    }
+
+    // Validate role
+    const validRoles = ['user', 'admin', 'super_admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role',
+        error: `Role must be one of: ${validRoles.join(', ')}`,
+      });
+    }
+
+    // Only super_admin can create super_admin users
+    if (role === 'super_admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only super administrators can create super_admin users',
+      });
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await User.create({
+      username,
+      email,
+      password_hash,
+      role,
+    });
+
+    // Admin-created users are auto-verified
+    await User.update(user.id, { email_verified: true });
+
+    const createdUser = await User.findById(user.id);
+
     res.status(201).json({
       success: true,
-      message: 'Admin: Create user (stub)',
-      data: {
-        user: null,
-      },
+      message: 'User created successfully',
+      data: { user: createdUser },
     });
   } catch (error) {
     console.error('Create user error:', error);
+
+    // Handle duplicate email/username
+    if (error.message.includes('already exists')) {
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists',
+        error: error.message,
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to create user',
@@ -88,16 +164,69 @@ exports.createUser = async (req, res) => {
  */
 exports.updateUser = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Check if user exists
+    const existingUser = await User.findById(parseInt(id, 10));
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Admins cannot update their own role or status
+    if (parseInt(id, 10) === req.user.id && (updates.role || updates.is_active !== undefined)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot modify your own role or status',
+      });
+    }
+
+    // Only super_admin can change user to super_admin
+    if (updates.role === 'super_admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only super administrators can grant super_admin role',
+      });
+    }
+
+    // Allowed fields for update
+    const allowedFields = ['username', 'email', 'first_name', 'last_name', 'role', 'is_active'];
+    const filteredUpdates = {};
+
+    Object.keys(updates).forEach(key => {
+      if (allowedFields.includes(key)) {
+        filteredUpdates[key] = updates[key];
+      }
+    });
+
+    if (Object.keys(filteredUpdates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid fields to update',
+      });
+    }
+
+    const user = await User.update(parseInt(id, 10), filteredUpdates);
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Update user (stub)',
-      data: {
-        user: null,
-      },
+      message: 'User updated successfully',
+      data: { user },
     });
   } catch (error) {
     console.error('Update user error:', error);
+
+    if (error.message.includes('already exists')) {
+      return res.status(409).json({
+        success: false,
+        message: 'Username or email already exists',
+        error: error.message,
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to update user',
@@ -111,13 +240,39 @@ exports.updateUser = async (req, res) => {
  */
 exports.deleteUser = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { id } = req.params;
+
+    // Check if user exists
+    const user = await User.findById(parseInt(id, 10));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prevent self-deletion
+    if (parseInt(id, 10) === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete your own account',
+      });
+    }
+
+    // Soft delete (deactivate)
+    const deleted = await User.deactivate(parseInt(id, 10));
+
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to deactivate user',
+      });
+    }
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Delete user (stub)',
-      data: {
-        deleted: false,
-      },
+      message: 'User deactivated successfully',
+      data: { deleted: true },
     });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -134,7 +289,42 @@ exports.deleteUser = async (req, res) => {
  */
 exports.updateUserRole = async (req, res) => {
   try {
+    const { id } = req.params;
     const { role } = req.body;
+
+    // Validation
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role is required',
+      });
+    }
+
+    const validRoles = ['user', 'admin', 'super_admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role',
+        error: `Role must be one of: ${validRoles.join(', ')}`,
+      });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findById(parseInt(id, 10));
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prevent self-role change
+    if (parseInt(id, 10) === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot change your own role',
+      });
+    }
 
     // Check if trying to grant super_admin role
     if (role === 'super_admin' && req.user.role !== 'super_admin') {
@@ -144,13 +334,12 @@ exports.updateUserRole = async (req, res) => {
       });
     }
 
-    // Stub implementation for Story 10.1
+    const user = await User.update(parseInt(id, 10), { role });
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Update user role (stub)',
-      data: {
-        user: null,
-      },
+      message: 'User role updated successfully',
+      data: { user },
     });
   } catch (error) {
     console.error('Update user role error:', error);
@@ -167,13 +356,63 @@ exports.updateUserRole = async (req, res) => {
  */
 exports.updateUserStatus = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    // Validation
+    if (is_active === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'is_active field is required',
+      });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'is_active must be a boolean value',
+      });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findById(parseInt(id, 10));
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prevent self-status modification
+    if (parseInt(id, 10) === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot change your own status',
+      });
+    }
+
+    // Activate or deactivate user
+    let success;
+    if (is_active) {
+      success = await User.activate(parseInt(id, 10));
+    } else {
+      success = await User.deactivate(parseInt(id, 10));
+    }
+
+    if (!success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update user status',
+      });
+    }
+
+    // Get updated user
+    const user = await User.findById(parseInt(id, 10));
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Update user status (stub)',
-      data: {
-        user: null,
-      },
+      message: `User ${is_active ? 'activated' : 'deactivated'} successfully`,
+      data: { user },
     });
   } catch (error) {
     console.error('Update user status error:', error);
@@ -190,12 +429,32 @@ exports.updateUserStatus = async (req, res) => {
  */
 exports.searchUsers = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { q, limit = 10 } = req.query;
+
+    // Validation
+    if (!q || q.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query (q) is required',
+      });
+    }
+
+    // Validate limit
+    const searchLimit = parseInt(limit, 10);
+    if (isNaN(searchLimit) || searchLimit < 1 || searchLimit > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be between 1 and 100',
+      });
+    }
+
+    const users = await User.search(q.trim(), searchLimit);
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Search users (stub)',
       data: {
-        users: [],
+        users,
+        count: users.length,
       },
     });
   } catch (error) {
