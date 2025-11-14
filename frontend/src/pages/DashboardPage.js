@@ -14,10 +14,16 @@ function DashboardPage() {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [securityData, setSecurityData] = useState({
+    activeSessions: 0,
+    unacknowledgedEvents: 0,
+    recentLoginAttempts: { total: 0, successful: 0, failed: 0 },
+  });
 
   // Fetch profile data on mount
   useEffect(() => {
     fetchProfileData();
+    fetchSecurityData();
   }, []);
 
   const fetchProfileData = async () => {
@@ -31,6 +37,36 @@ function DashboardPage() {
       setError(err.response?.data?.error || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSecurityData = async () => {
+    try {
+      // Fetch sessions count
+      const sessionsResponse = await apiService.security.getSessions();
+      const sessions = sessionsResponse.data.data.sessions || [];
+      const activeSessions = sessions.length;
+
+      // Fetch unacknowledged events count
+      const unacknowledgedResponse = await apiService.security.getUnacknowledgedCount();
+      const unacknowledgedEvents = unacknowledgedResponse.data.data.count || 0;
+
+      // Fetch recent login stats (last 7 days)
+      const loginStatsResponse = await apiService.security.getLoginStats(7);
+      const loginStats = loginStatsResponse.data.data;
+
+      setSecurityData({
+        activeSessions,
+        unacknowledgedEvents,
+        recentLoginAttempts: {
+          total: loginStats.totalLogins || 0,
+          successful: loginStats.successfulLogins || 0,
+          failed: loginStats.failedLogins || 0,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to fetch security data:', err);
+      // Don't set error state - this is non-critical data
     }
   };
 
@@ -259,6 +295,115 @@ function DashboardPage() {
             <Link to="/activity-log" className="btn btn-primary" style={{ padding: '1rem' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📊</div>
               <div>View Activity Log</div>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Security Overview - Story 9.5 */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <h2 className="card-title mb-3">Security Overview</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+            {/* Active Sessions */}
+            <Link to="/devices" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div
+                className="card h-100"
+                style={{
+                  border: '1px solid #dee2e6',
+                  transition: 'box-shadow 0.2s',
+                  cursor: 'pointer',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div className="card-body text-center">
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💻</div>
+                  <h3 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>
+                    {securityData.activeSessions}
+                  </h3>
+                  <p style={{ margin: 0, color: '#666', fontSize: '0.875rem' }}>Active Sessions</p>
+                  <small style={{ color: '#999', fontSize: '0.75rem' }}>Click to manage devices</small>
+                </div>
+              </div>
+            </Link>
+
+            {/* Security Alerts */}
+            <Link to="/security-alerts" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div
+                className="card h-100"
+                style={{
+                  border: securityData.unacknowledgedEvents > 0 ? '2px solid #ffc107' : '1px solid #dee2e6',
+                  transition: 'box-shadow 0.2s',
+                  cursor: 'pointer',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div className="card-body text-center">
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                    {securityData.unacknowledgedEvents > 0 ? '🚨' : '✓'}
+                  </div>
+                  <h3
+                    style={{
+                      fontSize: '2rem',
+                      marginBottom: '0.25rem',
+                      color: securityData.unacknowledgedEvents > 0 ? '#ffc107' : '#28a745',
+                    }}
+                  >
+                    {securityData.unacknowledgedEvents}
+                  </h3>
+                  <p style={{ margin: 0, color: '#666', fontSize: '0.875rem' }}>
+                    {securityData.unacknowledgedEvents === 1 ? 'Security Alert' : 'Security Alerts'}
+                  </p>
+                  <small style={{ color: '#999', fontSize: '0.75rem' }}>
+                    {securityData.unacknowledgedEvents > 0 ? 'Needs review' : 'All clear'}
+                  </small>
+                </div>
+              </div>
+            </Link>
+
+            {/* Recent Login Attempts */}
+            <Link to="/login-history" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div
+                className="card h-100"
+                style={{
+                  border: '1px solid #dee2e6',
+                  transition: 'box-shadow 0.2s',
+                  cursor: 'pointer',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div className="card-body text-center">
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🔐</div>
+                  <h3 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>
+                    {securityData.recentLoginAttempts.total}
+                  </h3>
+                  <p style={{ margin: 0, color: '#666', fontSize: '0.875rem' }}>Login Attempts</p>
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>
+                    <span style={{ color: '#28a745', marginRight: '0.5rem' }}>
+                      ✓ {securityData.recentLoginAttempts.successful}
+                    </span>
+                    <span style={{ color: '#dc3545' }}>
+                      ✗ {securityData.recentLoginAttempts.failed}
+                    </span>
+                  </div>
+                  <small style={{ color: '#999', fontSize: '0.75rem' }}>Last 7 days</small>
+                </div>
+              </div>
             </Link>
           </div>
         </div>

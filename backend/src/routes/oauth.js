@@ -3,13 +3,23 @@
  *
  * Routes for Google and GitHub OAuth2 authentication
  * Includes callback handling (Story 6.6)
+ *
+ * Note: Session middleware is applied ONLY to these OAuth routes
+ * to avoid conflicts with JWT-based authentication
  */
 
 const express = require('express');
 const router = express.Router();
-const { passport } = require('../config/passport');
+const { passport, createOAuthSessionMiddleware } = require('../config/passport');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+
+// Apply session middleware ONLY to OAuth routes
+const oauthSessionMiddleware = createOAuthSessionMiddleware();
+router.use(oauthSessionMiddleware);
+router.use(passport.session());
+
+console.log('✅ OAuth routes configured with session support');
 
 /**
  * @route   GET /api/oauth/google

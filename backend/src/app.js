@@ -19,6 +19,7 @@ const linkedProvidersRoutes = require('./routes/linkedProviders');
 const mfaRoutes = require('./routes/mfa');
 const userRoutes = require('./routes/user');
 const sessionRoutes = require('./routes/session');
+const securityRoutes = require('./routes/security');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -54,10 +55,8 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads')));
 
-// Session middleware (required for Passport)
-app.use(session(config.session));
-
-// Initialize Passport.js
+// Initialize Passport.js (without global session middleware)
+// Session middleware will be applied only to OAuth routes
 initializePassport(app);
 
 // API Routes
@@ -68,6 +67,7 @@ app.use('/api/oauth', oauthRoutes);
 app.use('/api/auth/mfa', mfaRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/sessions', sessionRoutes);
+app.use('/api/security', securityRoutes);
 
 // Test routes (development only)
 if (config.env === 'development') {

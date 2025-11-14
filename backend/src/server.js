@@ -4,6 +4,7 @@
 
 const app = require('./app');
 const config = require('./config');
+const { startSessionCleanupJob, stopSessionCleanupJob } = require('./jobs/sessionCleanup');
 
 const PORT = config.port;
 
@@ -24,10 +25,14 @@ const server = app.listen(PORT, () => {
   `);
 });
 
+// Start session cleanup cron job
+const cleanupJob = startSessionCleanupJob();
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('❌ UNHANDLED REJECTION! Shutting down...');
   console.error(err.name, err.message);
+  stopSessionCleanupJob(cleanupJob);
   server.close(() => {
     process.exit(1);
   });
@@ -36,6 +41,7 @@ process.on('unhandledRejection', (err) => {
 // Handle SIGTERM
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+  stopSessionCleanupJob(cleanupJob);
   server.close(() => {
     console.log('💥 Process terminated!');
   });

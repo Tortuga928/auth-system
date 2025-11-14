@@ -6,7 +6,7 @@
  */
 
 const Session = require('../models/Session');
-const { getClientIP } = require('../utils/sessionUtils');
+const { getClientIP, normalizeIPAddress } = require('../utils/sessionUtils');
 
 /**
  * Helper function to log activity
@@ -61,9 +61,10 @@ const getUserSessions = async (req, res) => {
     // Format sessions for response and mark current session
     const formattedSessions = sessions.map((session) => {
       // Determine if this is the current session
-      // Match by IP and user agent
+      // Match by IP and user agent (normalize IPs for Docker compatibility)
       const isCurrent =
-        session.ip_address === currentIP && session.user_agent === currentUA;
+        normalizeIPAddress(session.ip_address) === normalizeIPAddress(currentIP) &&
+        session.user_agent === currentUA;
 
       return {
         id: session.id,
@@ -145,7 +146,8 @@ const revokeSession = async (req, res) => {
     const currentIP = getClientIP(req);
     const currentUA = req.headers['user-agent'] || '';
     const isCurrent =
-      session.ip_address === currentIP && session.user_agent === currentUA;
+      normalizeIPAddress(session.ip_address) === normalizeIPAddress(currentIP) &&
+      session.user_agent === currentUA;
 
     if (isCurrent) {
       return res.status(400).json({
@@ -221,7 +223,8 @@ const revokeAllOtherSessions = async (req, res) => {
     const currentUA = req.headers['user-agent'] || '';
 
     const currentSession = sessions.find(
-      (s) => s.ip_address === currentIP && s.user_agent === currentUA
+      (s) => normalizeIPAddress(s.ip_address) === normalizeIPAddress(currentIP) &&
+           s.user_agent === currentUA
     );
 
     if (!currentSession) {

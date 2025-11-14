@@ -113,6 +113,26 @@ function getDeviceName(browser, os) {
 }
 
 /**
+ * Normalize IP address for consistent comparison
+ * Removes IPv6-mapped IPv4 prefix (::ffff:) for comparison purposes
+ * @param {string} ipAddress - IP address to normalize
+ * @returns {string} Normalized IP address
+ */
+function normalizeIPAddress(ipAddress) {
+  if (!ipAddress || ipAddress === 'Unknown') {
+    return ipAddress;
+  }
+
+  // Remove IPv6-mapped IPv4 prefix (::ffff:)
+  // Docker and some proxies add this prefix to IPv4 addresses
+  if (ipAddress.startsWith('::ffff:')) {
+    return ipAddress.substring(7); // Remove '::ffff:' prefix
+  }
+
+  return ipAddress;
+}
+
+/**
  * Extract client IP address from request
  * Handles proxies and load balancers (X-Forwarded-For, X-Real-IP)
  * @param {Object} req - Express request object
@@ -167,5 +187,6 @@ module.exports = {
   getLocationFromIP,
   getDeviceName,
   getClientIP,
+  normalizeIPAddress,
   extractSessionMetadata,
 };

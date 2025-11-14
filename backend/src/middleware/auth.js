@@ -79,9 +79,22 @@ const authenticate = async (req, res, next) => {
     // Attach full decoded token for additional info if needed
     req.token = decoded;
 
-    // Update session activity (non-blocking)
+    // Get and attach session for timeout checking
     const ipAddress = getClientIP(req);
     const userAgent = req.headers['user-agent'] || '';
+
+    try {
+      const sessions = await Session.findByUserId(user.id, true);
+      const currentSession = sessions.find(
+        (s) => s.ip_address === ipAddress && s.user_agent === userAgent
+      );
+      req.session = currentSession || null;
+    } catch (err) {
+      console.error('Failed to fetch session:', err);
+      req.session = null;
+    }
+
+    // Update session activity (non-blocking)
     Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
       console.error('Failed to update session activity:', err);
       // Don't fail the request if session update fails
@@ -151,9 +164,22 @@ const optionalAuth = async (req, res, next) => {
       };
       req.token = decoded;
 
-      // Update session activity (non-blocking)
+      // Get and attach session for timeout checking
       const ipAddress = getClientIP(req);
       const userAgent = req.headers['user-agent'] || '';
+
+      try {
+        const sessions = await Session.findByUserId(user.id, true);
+        const currentSession = sessions.find(
+          (s) => s.ip_address === ipAddress && s.user_agent === userAgent
+        );
+        req.session = currentSession || null;
+      } catch (err) {
+        console.error('Failed to fetch session:', err);
+        req.session = null;
+      }
+
+      // Update session activity (non-blocking)
       Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
         console.error('Failed to update session activity:', err);
       });
@@ -233,9 +259,12 @@ const requireEmailVerified = (req, res, next) => {
   next();
 };
 
+const { checkSessionTimeout } = require('./sessionTimeout');
+
 module.exports = {
   authenticate,
   optionalAuth,
   requireRole,
   requireEmailVerified,
+  checkSessionTimeout,
 };

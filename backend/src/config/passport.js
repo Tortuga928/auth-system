@@ -208,18 +208,39 @@ if (config.oauth.github.clientID && config.oauth.github.clientSecret) {
 
 /**
  * Initialize Passport with Express app
+ * Note: Does NOT initialize session support globally
+ * Session support is applied only to OAuth routes
  *
  * @param {Object} app - Express application instance
  */
 function initializePassport(app) {
-  // Initialize Passport
+  // Initialize Passport (without session support)
   app.use(passport.initialize());
-  app.use(passport.session());
 
-  console.log('✅ Passport.js initialized');
+  console.log('✅ Passport.js initialized (without global session)');
+}
+
+/**
+ * Create session middleware for OAuth routes
+ * This middleware must be applied before passport.session()
+ *
+ * @returns {Function} Express session middleware
+ */
+function createOAuthSessionMiddleware() {
+  const session = require('express-session');
+  const config = require('./index');
+
+  return session({
+    secret: config.expressSession.secret,
+    name: config.expressSession.name,
+    resave: config.expressSession.resave,
+    saveUninitialized: false, // Don't create session until something stored
+    cookie: config.expressSession.cookie,
+  });
 }
 
 module.exports = {
   passport,
   initializePassport,
+  createOAuthSessionMiddleware,
 };

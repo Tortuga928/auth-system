@@ -4,6 +4,7 @@
  * Handles Multi-Factor Authentication setup and management endpoints
  */
 
+const config = require('../config');
 const MFASecret = require('../models/MFASecret');
 const User = require('../models/User');
 const Session = require('../models/Session');
@@ -431,11 +432,19 @@ const verifyTOTP = async (req, res) => {
     // Extract session metadata from request
     const sessionMetadata = extractSessionMetadata(req);
 
+    // Calculate session expiration (MFA flow uses default 7-day timeout)
+    const now = Date.now();
+    const sessionDuration = config.session.timeout.absolute; // 7 days default
+    const expiresAt = new Date(now + sessionDuration);
+    const absoluteExpiresAt = new Date(now + sessionDuration);
+
     // Create session record with metadata
     await Session.create({
       user_id: user.id,
       refresh_token: tokens.refreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expires_at: expiresAt,
+      remember_me: false, // MFA flow doesn't support remember me yet
+      absolute_expires_at: absoluteExpiresAt,
       ...sessionMetadata,
     });
 
@@ -570,11 +579,19 @@ const verifyBackupCode = async (req, res) => {
     // Extract session metadata from request
     const sessionMetadata = extractSessionMetadata(req);
 
+    // Calculate session expiration (MFA flow uses default 7-day timeout)
+    const now = Date.now();
+    const sessionDuration = config.session.timeout.absolute; // 7 days default
+    const expiresAt = new Date(now + sessionDuration);
+    const absoluteExpiresAt = new Date(now + sessionDuration);
+
     // Create session record with metadata
     await Session.create({
       user_id: user.id,
       refresh_token: tokens.refreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expires_at: expiresAt,
+      remember_me: false, // MFA flow doesn't support remember me yet
+      absolute_expires_at: absoluteExpiresAt,
       ...sessionMetadata,
     });
 
