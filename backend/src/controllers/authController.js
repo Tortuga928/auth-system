@@ -4,12 +4,17 @@
  * Handles user registration, login, and token refresh
  */
 
+const config = require('../config');
 const User = require('../models/User');
 const MFASecret = require('../models/MFASecret');
+const Session = require('../models/Session');
+const LoginAttempt = require('../models/LoginAttempt');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateTokenPair, verifyRefreshToken, generateAccessToken, generateMFAChallengeToken } = require('../utils/jwt');
 const tokenService = require('../utils/tokenService');
 const emailService = require('../services/emailService');
+const { extractSessionMetadata } = require('../utils/sessionUtils');
+const { checkLoginSecurity } = require('../utils/securityDetection');
 
 /**
  * Register a new user
@@ -158,7 +163,7 @@ const register = async (req, res, next) => {
  */
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     // Validate required fields
     if (!email || !password) {
@@ -168,10 +173,22 @@ const login = async (req, res, next) => {
       });
     }
 
+    // Extract session metadata from request (needed for logging)
+    const sessionMetadata = extractSessionMetadata(req);
+
     // Find user by email
     const user = await User.findByEmail(email);
 
     if (!user) {
+      // Log failed login attempt - user not found
+      await LoginAttempt.create({
+        user_id: null,
+        email,
+        success: false,
+        failure_reason: 'user_not_found',
+        ...sessionMetadata,
+      });
+
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
@@ -182,6 +199,23 @@ const login = async (req, res, next) => {
     const isPasswordValid = await comparePassword(password, user.password_hash);
 
     if (!isPasswordValid) {
+      // Log failed login attempt - invalid password
+      await LoginAttempt.create({
+        user_id: user.id,
+        email,
+        success: false,
+        failure_reason: 'invalid_password',
+        ...sessionMetadata,
+      });
+
+      // Check for security events (brute force)
+      await checkLoginSecurity({
+        userId: user.id,
+        email,
+        success: false,
+        ...sessionMetadata,
+      });
+
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
@@ -196,6 +230,15 @@ const login = async (req, res, next) => {
       const mfaChallengeToken = generateMFAChallengeToken({
         id: user.id,
         email: user.email,
+      });
+
+      // Log partial success (password correct, awaiting MFA)
+      await LoginAttempt.create({
+        user_id: user.id,
+        email,
+        success: false,
+        failure_reason: 'mfa_required',
+        ...sessionMetadata,
       });
 
       return res.status(200).json({
@@ -214,11 +257,47 @@ const login = async (req, res, next) => {
 
     // MFA not enabled - proceed with normal login
 
+    // Log successful login attempt
+    await LoginAttempt.create({
+      user_id: user.id,
+      email,
+      success: true,
+      failure_reason: null,
+      ...sessionMetadata,
+    });
+
+    // Check for security events (new location, new device)
+    await checkLoginSecurity({
+      userId: user.id,
+      email,
+      success: true,
+      ...sessionMetadata,
+    });
+
     // Generate tokens
     const tokens = generateTokenPair({
       id: user.id,
       email: user.email,
       role: user.role,
+    });
+
+    // Calculate session expiration based on rememberMe flag
+    const now = Date.now();
+    const sessionDuration = rememberMe
+      ? config.session.timeout.rememberMe  // 30 days if "remember me"
+      : config.session.timeout.absolute;   // 7 days default
+
+    const expiresAt = new Date(now + sessionDuration);
+    const absoluteExpiresAt = new Date(now + sessionDuration);
+
+    // Create session record with metadata
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: expiresAt,
+      remember_me: rememberMe || false,
+      absolute_expires_at: absoluteExpiresAt,
+      ...sessionMetadata,
     });
 
     // Return success response

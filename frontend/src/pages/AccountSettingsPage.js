@@ -158,6 +158,104 @@ function AccountSettingsPage() {
 
       <h1 style={{ marginBottom: '2rem' }}>Account Settings</h1>
 
+      {/* Security Section - Story 9.5 */}
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <div className="card-body">
+          <h2 className="card-title" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
+            Security
+          </h2>
+          <p style={{ color: '#666', marginBottom: '1.5rem' }}>
+            Manage your account security, view active sessions, and monitor login activity.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+            {/* Device Management */}
+            <Link
+              to="/devices"
+              className="card"
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                border: '1px solid #dee2e6',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                e.currentTarget.style.borderColor = '#007bff';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <div className="card-body text-center">
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💻</div>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Device Management</h3>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>
+                  View and manage active sessions
+                </p>
+              </div>
+            </Link>
+
+            {/* Login History */}
+            <Link
+              to="/login-history"
+              className="card"
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                border: '1px solid #dee2e6',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                e.currentTarget.style.borderColor = '#007bff';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <div className="card-body text-center">
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Login History</h3>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>
+                  Review all login attempts
+                </p>
+              </div>
+            </Link>
+
+            {/* Security Alerts */}
+            <Link
+              to="/security-alerts"
+              className="card"
+              style={{
+                textDecoration: 'none',
+                color: 'inherit',
+                border: '1px solid #dee2e6',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                e.currentTarget.style.borderColor = '#007bff';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <div className="card-body text-center">
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🚨</div>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Security Alerts</h3>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: '#666' }}>
+                  View and acknowledge events
+                </p>
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+
       {/* Password Change Section */}
       <div className="card" style={{ marginBottom: '2rem' }}>
         <div className="card-body">

@@ -15,6 +15,10 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import MFASettingsPage from './pages/MFASettingsPage';
+// Story 9.5: Device Management UI
+import DeviceManagementPage from './pages/DeviceManagementPage';
+import LoginHistoryPage from './pages/LoginHistoryPage';
+import SecurityAlertsPage from './pages/SecurityAlertsPage';
 import './App.css';
 
 function App() {
@@ -32,6 +36,9 @@ function App() {
               <Link to="/register" className="nav-link">Register</Link>
               <Link to="/dashboard" className="nav-link">Dashboard</Link>
               <Link to="/mfa-settings" className="nav-link">2FA Settings</Link>
+              <Link to="/devices" className="nav-link">Devices</Link>
+              <Link to="/login-history" className="nav-link">Login History</Link>
+              <Link to="/security-alerts" className="nav-link">Security</Link>
             </div>
           </div>
         </nav>
@@ -49,6 +56,10 @@ function App() {
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="/mfa-settings" element={<MFASettingsPage />} />
+            {/* Story 9.5: Device Management UI */}
+            <Route path="/devices" element={<DeviceManagementPage />} />
+            <Route path="/login-history" element={<LoginHistoryPage />} />
+            <Route path="/security-alerts" element={<SecurityAlertsPage />} />
           </Routes>
         </main>
 

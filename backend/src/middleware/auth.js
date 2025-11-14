@@ -6,6 +6,8 @@
 
 const { verifyAccessToken, extractTokenFromHeader } = require('../utils/jwt');
 const User = require('../models/User');
+const Session = require('../models/Session');
+const { getClientIP } = require('../utils/sessionUtils');
 
 /**
  * Authentication middleware
@@ -77,6 +79,27 @@ const authenticate = async (req, res, next) => {
     // Attach full decoded token for additional info if needed
     req.token = decoded;
 
+    // Get and attach session for timeout checking
+    const ipAddress = getClientIP(req);
+    const userAgent = req.headers['user-agent'] || '';
+
+    try {
+      const sessions = await Session.findByUserId(user.id, true);
+      const currentSession = sessions.find(
+        (s) => s.ip_address === ipAddress && s.user_agent === userAgent
+      );
+      req.session = currentSession || null;
+    } catch (err) {
+      console.error('Failed to fetch session:', err);
+      req.session = null;
+    }
+
+    // Update session activity (non-blocking)
+    Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
+      console.error('Failed to update session activity:', err);
+      // Don't fail the request if session update fails
+    });
+
     // Continue to next middleware
     next();
   } catch (error) {
@@ -140,6 +163,26 @@ const optionalAuth = async (req, res, next) => {
         email_verified: user.email_verified,
       };
       req.token = decoded;
+
+      // Get and attach session for timeout checking
+      const ipAddress = getClientIP(req);
+      const userAgent = req.headers['user-agent'] || '';
+
+      try {
+        const sessions = await Session.findByUserId(user.id, true);
+        const currentSession = sessions.find(
+          (s) => s.ip_address === ipAddress && s.user_agent === userAgent
+        );
+        req.session = currentSession || null;
+      } catch (err) {
+        console.error('Failed to fetch session:', err);
+        req.session = null;
+      }
+
+      // Update session activity (non-blocking)
+      Session.updateActivity(user.id, ipAddress, userAgent).catch((err) => {
+        console.error('Failed to update session activity:', err);
+      });
     } else {
       req.user = null;
     }
@@ -216,9 +259,12 @@ const requireEmailVerified = (req, res, next) => {
   next();
 };
 
+const { checkSessionTimeout } = require('./sessionTimeout');
+
 module.exports = {
   authenticate,
   optionalAuth,
   requireRole,
   requireEmailVerified,
+  checkSessionTimeout,
 };
