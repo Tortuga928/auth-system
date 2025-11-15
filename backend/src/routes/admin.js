@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, isAdmin, isSuperAdmin } = require('../middleware/auth');
 const adminController = require('../controllers/adminController');
+const auditLog = require('../middleware/auditLog');
 
 // Apply authentication to all admin routes
 router.use(authenticate);
@@ -53,7 +54,7 @@ router.get('/users/:id', isAdmin, adminController.getUserById);
  * Creates new user with specified role
  * Email verification can be bypassed by admin
  */
-router.post('/users', isAdmin, adminController.createUser);
+router.post('/users', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_CREATE, (req, data) => ({ targetId: data.data.user.id, details: { username: data.data.user.username, email: data.data.user.email, role: data.data.user.role } })), adminController.createUser);
 
 /**
  * @route   PUT /api/admin/users/:id
@@ -64,7 +65,7 @@ router.post('/users', isAdmin, adminController.createUser);
  *
  * Updates user profile, role, or status
  */
-router.put('/users/:id', isAdmin, adminController.updateUser);
+router.put('/users/:id', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_UPDATE, (req, data) => ({ targetId: parseInt(req.params.id), details: req.body })), adminController.updateUser);
 
 /**
  * @route   DELETE /api/admin/users/:id
@@ -75,7 +76,7 @@ router.put('/users/:id', isAdmin, adminController.updateUser);
  * Soft delete (sets is_active = false)
  * Hard delete available for super_admin only
  */
-router.delete('/users/:id', isAdmin, adminController.deleteUser);
+router.delete('/users/:id', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_DELETE, (req, data) => ({ targetId: parseInt(req.params.id) })), adminController.deleteUser);
 
 /**
  * @route   PUT /api/admin/users/:id/role
@@ -87,7 +88,7 @@ router.delete('/users/:id', isAdmin, adminController.deleteUser);
  * Changes user role
  * Only super_admin can grant super_admin role
  */
-router.put('/users/:id/role', isAdmin, adminController.updateUserRole);
+router.put('/users/:id/role', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_ROLE_CHANGE, (req, data) => ({ targetId: parseInt(req.params.id), details: { newRole: req.body.role } })), adminController.updateUserRole);
 
 /**
  * @route   PUT /api/admin/users/:id/status
@@ -98,7 +99,7 @@ router.put('/users/:id/role', isAdmin, adminController.updateUserRole);
  *
  * Activate or deactivate user account
  */
-router.put('/users/:id/status', isAdmin, adminController.updateUserStatus);
+router.put('/users/:id/status', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_STATUS_CHANGE, (req, data) => ({ targetId: parseInt(req.params.id), details: { is_active: req.body.is_active } })), adminController.updateUserStatus);
 
 /**
  * @route   GET /api/admin/audit-logs

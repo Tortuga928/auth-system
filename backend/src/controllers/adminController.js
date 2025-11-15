@@ -6,6 +6,7 @@
  */
 
 const User = require('../models/User');
+const AuditLog = require('../models/AuditLog');
 const bcrypt = require('bcrypt');
 
 /**
@@ -472,19 +473,38 @@ exports.searchUsers = async (req, res) => {
  */
 exports.getAuditLogs = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const {
+      page = 1,
+      pageSize = 20,
+      admin_id,
+      action,
+      target_type,
+      target_id,
+      start_date,
+      end_date,
+      sortOrder = 'DESC',
+    } = req.query;
+
+    // Build options object
+    const options = {
+      page: parseInt(page, 10),
+      pageSize: parseInt(pageSize, 10),
+      sortOrder: sortOrder.toUpperCase(),
+    };
+
+    // Add optional filters
+    if (admin_id) options.admin_id = parseInt(admin_id, 10);
+    if (action) options.action = action;
+    if (target_type) options.target_type = target_type;
+    if (target_id) options.target_id = parseInt(target_id, 10);
+    if (start_date) options.start_date = new Date(start_date);
+    if (end_date) options.end_date = new Date(end_date);
+
+    const result = await AuditLog.findAll(options);
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get audit logs (stub)',
-      data: {
-        logs: [],
-        pagination: {
-          page: 1,
-          pageSize: 20,
-          totalCount: 0,
-          totalPages: 0,
-        },
-      },
+      data: result,
     });
   } catch (error) {
     console.error('Get audit logs error:', error);
@@ -495,7 +515,6 @@ exports.getAuditLogs = async (req, res) => {
     });
   }
 };
-
 /**
  * Get dashboard statistics
  */
