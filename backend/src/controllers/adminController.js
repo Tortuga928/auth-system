@@ -63,7 +63,16 @@ exports.getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const user = await User.findByIdWithDetails(parseInt(id, 10));
+    // Validate ID format
+    const userId = parseInt(id, 10);
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID format',
+      });
+    }
+
+    const user = await User.findByIdWithDetails(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -333,6 +342,14 @@ exports.updateUserRole = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'Only super administrators can grant super_admin role',
+      });
+    }
+
+    // Only super_admin can grant admin role
+    if (role === 'admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only super administrators can grant admin role',
       });
     }
 
