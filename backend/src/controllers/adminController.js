@@ -8,6 +8,7 @@
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const bcrypt = require('bcrypt');
+const adminStatsService = require('../services/adminStatsService');
 
 /**
  * Get all users with pagination and filtering
@@ -517,22 +518,17 @@ exports.getAuditLogs = async (req, res) => {
 };
 /**
  * Get dashboard statistics
+ *
+ * Returns overall system statistics: total users, active users, new users, admin count
+ * Uses caching for performance (5-minute TTL)
  */
 exports.getDashboardStats = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const stats = await adminStatsService.getOverallStats();
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get dashboard stats (stub)',
-      data: {
-        totalUsers: 0,
-        activeUsers: 0,
-        newUsersToday: 0,
-        newUsersThisWeek: 0,
-        newUsersThisMonth: 0,
-        adminCount: 0,
-        suspendedCount: 0,
-      },
+      data: stats,
     });
   } catch (error) {
     console.error('Get dashboard stats error:', error);
@@ -546,17 +542,28 @@ exports.getDashboardStats = async (req, res) => {
 
 /**
  * Get user growth statistics
+ *
+ * Returns daily user registration counts for the last N days (default: 30)
+ * Used for dashboard charts showing user growth trends
  */
 exports.getUserGrowth = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const { days = 30 } = req.query;
+    const daysNum = parseInt(days, 10);
+
+    // Validate days parameter
+    if (isNaN(daysNum) || daysNum < 1 || daysNum > 365) {
+      return res.status(400).json({
+        success: false,
+        message: 'Days must be between 1 and 365',
+      });
+    }
+
+    const growth = await adminStatsService.getUserGrowth(daysNum);
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get user growth (stub)',
-      data: {
-        labels: [],
-        data: [],
-      },
+      data: growth,
     });
   } catch (error) {
     console.error('Get user growth error:', error);
@@ -570,19 +577,17 @@ exports.getUserGrowth = async (req, res) => {
 
 /**
  * Get activity summary
+ *
+ * Returns login attempts, failed logins, active sessions, security events
+ * More real-time data with shorter cache (1-minute TTL)
  */
 exports.getActivitySummary = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const activity = await adminStatsService.getActivitySummary();
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get activity summary (stub)',
-      data: {
-        loginAttemptsToday: 0,
-        failedLoginsToday: 0,
-        activeSessionsNow: 0,
-        securityEventsToday: 0,
-      },
+      data: activity,
     });
   } catch (error) {
     console.error('Get activity summary error:', error);
@@ -596,19 +601,17 @@ exports.getActivitySummary = async (req, res) => {
 
 /**
  * Get security overview
+ *
+ * Returns critical alerts, MFA adoption, recent failed logins, suspicious activity
+ * Uses caching with 2-minute TTL
  */
 exports.getSecurityOverview = async (req, res) => {
   try {
-    // Stub implementation for Story 10.1
+    const security = await adminStatsService.getSecurityOverview();
+
     res.status(200).json({
       success: true,
-      message: 'Admin: Get security overview (stub)',
-      data: {
-        criticalAlertsCount: 0,
-        mfaEnabledPercentage: 0,
-        recentFailedLogins: [],
-        suspiciousActivity: [],
-      },
+      data: security,
     });
   } catch (error) {
     console.error('Get security overview error:', error);
