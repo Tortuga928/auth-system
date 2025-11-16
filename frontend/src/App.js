@@ -19,6 +19,10 @@ import MFASettingsPage from './pages/MFASettingsPage';
 import DeviceManagementPage from './pages/DeviceManagementPage';
 import LoginHistoryPage from './pages/LoginHistoryPage';
 import SecurityAlertsPage from './pages/SecurityAlertsPage';
+// Story 10.5: Admin Panel UI
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UsersManagement from './pages/admin/UsersManagement';
+import AuditLogs from './pages/admin/AuditLogs';
 import './App.css';
 
 function App() {
@@ -39,6 +43,7 @@ function App() {
               <Link to="/devices" className="nav-link">Devices</Link>
               <Link to="/login-history" className="nav-link">Login History</Link>
               <Link to="/security-alerts" className="nav-link">Security</Link>
+              <Link to="/admin/dashboard" className="nav-link">Admin</Link>
             </div>
           </div>
         </nav>
@@ -59,6 +64,10 @@ function App() {
             {/* Story 9.5: Device Management UI */}
             <Route path="/devices" element={<DeviceManagementPage />} />
             <Route path="/login-history" element={<LoginHistoryPage />} />
+            {/* Story 10.5: Admin Panel UI */}
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<UsersManagement />} />
+            <Route path="/admin/audit-logs" element={<AuditLogs />} />
             <Route path="/security-alerts" element={<SecurityAlertsPage />} />
           </Routes>
         </main>
