@@ -81,12 +81,11 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       padding: '20px 0',
     },
     navItem: {
-      display: 'block',
+      display: 'flex',
       padding: sidebarCollapsed ? '15px 20px' : '12px 20px',
       color: '#bdc3c7',
       textDecoration: 'none',
       transition: 'all 0.2s ease',
-      display: 'flex',
       alignItems: 'center',
       gap: '10px',
       fontSize: '14px',
