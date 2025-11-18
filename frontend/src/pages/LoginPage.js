@@ -35,6 +35,7 @@ function LoginPage() {
       // Regular login success
       localStorage.setItem('authToken', response.data.data.tokens.accessToken);
       localStorage.setItem('refreshToken', response.data.data.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(response.data.data.user));
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || 'Login failed. Please try again.');
@@ -91,6 +92,7 @@ function LoginPage() {
 
       localStorage.setItem('authToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
       console.log('✅ [LoginPage] Tokens stored successfully');
       console.log('🚀 [LoginPage] Navigating to /dashboard...');
