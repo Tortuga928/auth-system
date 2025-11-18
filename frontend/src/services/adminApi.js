@@ -1,0 +1,53 @@
+/**
+ * Admin API Service
+ *
+ * Provides API methods for admin panel functionality.
+ * Story 10.5 - Admin Panel UI
+ */
+
+import { api } from './api';
+
+const adminApi = {
+  // Dashboard
+  getDashboardStats: () => api.get('/api/admin/dashboard/stats'),
+  getUserGrowth: (days = 30) => api.get(`/api/admin/dashboard/user-growth?days=${days}`),
+  getActivitySummary: () => api.get('/api/admin/dashboard/activity'),
+  getSecurityOverview: () => api.get('/api/admin/dashboard/security'),
+
+  // User management
+  getUsers: (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append('page', params.page);
+    if (params.pageSize) queryParams.append('pageSize', params.pageSize);
+    if (params.role) queryParams.append('role', params.role);
+    if (params.status) queryParams.append('status', params.status);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+    return api.get(`/api/admin/users?${queryParams.toString()}`);
+  },
+  getUserById: (id) => api.get(`/api/admin/users/${id}`),
+  createUser: (data) => api.post('/api/admin/users', data),
+  updateUser: (id, data) => api.put(`/api/admin/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/api/admin/users/${id}`),
+  updateUserRole: (id, role) => api.put(`/api/admin/users/${id}/role`, { role }),
+  updateUserStatus: (id, isActive) => api.put(`/api/admin/users/${id}/status`, { is_active: isActive }),
+  searchUsers: (query, limit = 10) => api.get(`/api/admin/users/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+
+  // Audit logs
+  getAuditLogs: (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append('page', params.page);
+    if (params.pageSize) queryParams.append('pageSize', params.pageSize);
+    if (params.admin_id) queryParams.append('admin_id', params.admin_id);
+    if (params.action) queryParams.append('action', params.action);
+    if (params.target_type) queryParams.append('target_type', params.target_type);
+    if (params.target_id) queryParams.append('target_id', params.target_id);
+    if (params.start_date) queryParams.append('start_date', params.start_date);
+    if (params.end_date) queryParams.append('end_date', params.end_date);
+    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+    return api.get(`/api/admin/audit-logs?${queryParams.toString()}`);
+  },
+};
+
+export default adminApi;

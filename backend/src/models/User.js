@@ -298,7 +298,7 @@ class User {
    * Clear MFA reset token
    *
    * @param {number} userId - User ID
-   * @returns {Promise<boolean>} True if cleared
+   * @returns {Promise<boolean}> True if cleared
    */
   static async clearMFAResetToken(userId) {
     const query = `
@@ -308,6 +308,167 @@ class User {
       RETURNING id
     `;
     const result = await db.query(query, [userId]);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Find all users with pagination and filtering (Admin)
+   *
+   * @param {Object} options - Query options
+   * @param {number} options.page - Page number (default: 1)
+   * @param {number} options.pageSize - Items per page (default: 20)
+   * @param {string} options.role - Filter by role
+   * @param {boolean} options.is_active - Filter by active status
+   * @param {string} options.search - Search in email/username
+   * @param {string} options.sortBy - Sort field (default: 'created_at')
+   * @param {string} options.sortOrder - Sort order 'ASC' or 'DESC' (default: 'DESC')
+   * @returns {Promise<Object>} { users: [], pagination: {} }
+   */
+  static async findAll(options = {}) {
+    const {
+      page = 1,
+      pageSize = 20,
+      role,
+      is_active,
+      search,
+      sortBy = 'created_at',
+      sortOrder = 'DESC',
+    } = options;
+
+    const offset = (page - 1) * pageSize;
+    const whereConditions = [];
+    const values = [];
+    let paramCount = 1;
+
+    // Build WHERE clause
+    if (role) {
+      whereConditions.push(`role = $${paramCount}`);
+      values.push(role);
+      paramCount++;
+    }
+
+    if (is_active !== undefined) {
+      whereConditions.push(`is_active = $${paramCount}`);
+      values.push(is_active);
+      paramCount++;
+    }
+
+    if (search) {
+      whereConditions.push(`(email ILIKE $${paramCount} OR username ILIKE $${paramCount})`);
+      values.push(`%${search}%`);
+      paramCount++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Validate sortBy to prevent SQL injection
+    const allowedSortFields = ['id', 'username', 'email', 'role', 'created_at', 'is_active'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // Get total count
+    const countQuery = `SELECT COUNT(*) as count FROM users ${whereClause}`;
+    const countResult = await db.query(countQuery, values);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+
+    // Get paginated users
+    const dataQuery = `
+      SELECT id, username, email, first_name, last_name, role, email_verified, is_active, avatar_url, created_at, updated_at
+      FROM users
+      ${whereClause}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+    values.push(pageSize, offset);
+
+    const dataResult = await db.query(dataQuery, values);
+
+    return {
+      users: dataResult.rows,
+      pagination: {
+        page,
+        pageSize,
+        totalCount,
+        totalPages: Math.ceil(totalCount / pageSize),
+      },
+    };
+  }
+
+  /**
+   * Search users by email or username (Admin)
+   *
+   * @param {string} searchTerm - Search term
+   * @param {number} limit - Max results (default: 10)
+   * @returns {Promise<Array>} Array of users
+   */
+  static async search(searchTerm, limit = 10) {
+    const query = `
+      SELECT id, username, email, role, email_verified, is_active, created_at
+      FROM users
+      WHERE email ILIKE $1 OR username ILIKE $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `;
+
+    const result = await db.query(query, [`%${searchTerm}%`, limit]);
+    return result.rows;
+  }
+
+  /**
+   * Get user with additional details (Admin)
+   * Includes MFA status, OAuth accounts count, recent activity
+   *
+   * @param {number} id - User ID
+   * @returns {Promise<Object|null>} User with details or null
+   */
+  static async findByIdWithDetails(id) {
+    const query = `
+      SELECT
+        u.id, u.username, u.email, u.first_name, u.last_name,
+        u.role, u.email_verified, u.is_active, u.avatar_url,
+        u.last_login_at, u.created_at, u.updated_at,
+        EXISTS(SELECT 1 FROM mfa_secrets WHERE user_id = u.id AND enabled = true) as mfa_enabled,
+        (SELECT COUNT(*) FROM oauth_accounts WHERE user_id = u.id) as oauth_accounts_count,
+        (SELECT COUNT(*) FROM sessions WHERE user_id = u.id AND is_active = true) as active_sessions_count
+      FROM users u
+      WHERE u.id = $1
+    `;
+
+    const result = await db.query(query, [id]);
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Soft delete user (set is_active = false)
+   *
+   * @param {number} id - User ID
+   * @returns {Promise<boolean>} True if deactivated
+   */
+  static async deactivate(id) {
+    const query = `
+      UPDATE users
+      SET is_active = false, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `;
+    const result = await db.query(query, [id]);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Reactivate user (set is_active = true)
+   *
+   * @param {number} id - User ID
+   * @returns {Promise<boolean>} True if reactivated
+   */
+  static async activate(id) {
+    const query = `
+      UPDATE users
+      SET is_active = true, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `;
+    const result = await db.query(query, [id]);
     return result.rows.length > 0;
   }
 }
