@@ -22,6 +22,7 @@ import SecurityAlertsPage from './pages/SecurityAlertsPage';
 // Story 10.5: Admin Panel UI
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
+import UserDetailPage from './pages/admin/UserDetailPage';
 import AuditLogs from './pages/admin/AuditLogs';
 import './App.css';
 
@@ -67,6 +68,7 @@ function App() {
             {/* Story 10.5: Admin Panel UI */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<UsersManagement />} />
+            <Route path="/admin/users/:id" element={<UserDetailPage />} />
             <Route path="/admin/audit-logs" element={<AuditLogs />} />
             <Route path="/security-alerts" element={<SecurityAlertsPage />} />
           </Routes>
