@@ -207,9 +207,12 @@ one of these codes to log in to your account.`;
         {/* Header */}
         <div className="modal-header">
           <h2>🔐 Enable Two-Factor Authentication</h2>
-          <button className="close-btn" onClick={handleClose} aria-label="Close">
-            ×
-          </button>
+          {/* Hide close button on Step 4 (backup codes) to ensure user completes setup */}
+          {currentStep !== 4 && (
+            <button className="close-btn" onClick={handleClose} aria-label="Close">
+              ×
+            </button>
+          )}
         </div>
 
         {/* Progress Indicator */}
