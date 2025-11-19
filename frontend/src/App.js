@@ -2,8 +2,8 @@
  * Main App component with routing
  */
 
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -24,30 +24,80 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
 import UserDetailPage from './pages/admin/UserDetailPage';
 import AuditLogs from './pages/admin/AuditLogs';
+import apiService from './services/api';
 import './App.css';
+
+function Navigation() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
+
+  // Check login status on mount and location change
+  useEffect(() => {
+    const authToken = localStorage.getItem('authToken');
+    const userData = localStorage.getItem('user');
+    setIsLoggedIn(!!authToken);
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        setUser(null);
+      }
+    }
+  }, [location]);
+
+  const handleLogout = async () => {
+    try {
+      // Call backend to invalidate all active sessions
+      await apiService.auth.logout();
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+      // Continue with client-side logout even if API fails
+    } finally {
+      // Always clear client-side auth state
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      setIsLoggedIn(false);
+      setUser(null);
+      navigate('/login');
+    }
+  };
+
+  return (
+    <nav className="navbar">
+      <div className="container">
+        <div className="navbar-brand">
+          <Link to="/">🔐 Auth System</Link>
+        </div>
+        <div className="navbar-menu">
+          <Link to="/" className="nav-link">Home</Link>
+          {!isLoggedIn && <Link to="/login" className="nav-link">Login</Link>}
+          {!isLoggedIn && <Link to="/register" className="nav-link">Register</Link>}
+          {isLoggedIn && <Link to="/dashboard" className="nav-link">Dashboard</Link>}
+          {isLoggedIn && <Link to="/mfa-settings" className="nav-link">2FA Settings</Link>}
+          {isLoggedIn && <Link to="/devices" className="nav-link">Devices</Link>}
+          {isLoggedIn && <Link to="/login-history" className="nav-link">Login History</Link>}
+          {isLoggedIn && <Link to="/security-alerts" className="nav-link">Security</Link>}
+          {isLoggedIn && (user?.role === 'admin' || user?.role === 'super_admin') && (
+            <Link to="/admin/dashboard" className="nav-link">Admin</Link>
+          )}
+          {isLoggedIn && (
+            <button onClick={handleLogout} className="nav-link logout-button">
+              Sign Out
+            </button>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
+}
 
 function App() {
   return (
     <Router>
       <div className="app">
-        <nav className="navbar">
-          <div className="container">
-            <div className="navbar-brand">
-              <Link to="/">🔐 Auth System</Link>
-            </div>
-            <div className="navbar-menu">
-              <Link to="/" className="nav-link">Home</Link>
-              <Link to="/login" className="nav-link">Login</Link>
-              <Link to="/register" className="nav-link">Register</Link>
-              <Link to="/dashboard" className="nav-link">Dashboard</Link>
-              <Link to="/mfa-settings" className="nav-link">2FA Settings</Link>
-              <Link to="/devices" className="nav-link">Devices</Link>
-              <Link to="/login-history" className="nav-link">Login History</Link>
-              <Link to="/security-alerts" className="nav-link">Security</Link>
-              <Link to="/admin/dashboard" className="nav-link">Admin</Link>
-            </div>
-          </div>
-        </nav>
+        <Navigation />
 
         <main className="main-content">
           <Routes>

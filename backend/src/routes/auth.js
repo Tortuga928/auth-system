@@ -64,5 +64,11 @@ router.get('/verify-email/:token', authController.verifyEmail);
  * @access  Private (requires authentication)
  */
 router.get('/me', authenticate, authController.getCurrentUser);
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Logout current user
+ * @access  Private (requires authentication)
+ */
+router.post('/logout', authenticate, authController.logout);
 
 module.exports = router;

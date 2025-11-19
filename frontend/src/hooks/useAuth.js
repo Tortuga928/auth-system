@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import apiService from '../services/api';
 
 function useAuth() {
   const [user, setUser] = useState(null);
@@ -20,10 +21,20 @@ function useAuth() {
     console.log('Login:', credentials);
   };
 
-  const logout = () => {
-    // TODO: Implement logout
-    localStorage.removeItem('authToken');
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Call backend to invalidate all active sessions
+      await apiService.auth.logout();
+    } catch (error) {
+      console.error('Backend logout API call failed:', error);
+      // Continue with client-side logout even if backend API fails
+      // This ensures user can always log out from the client side
+    } finally {
+      // Always clear client-side auth state regardless of API success/failure
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      setUser(null);
+    }
   };
 
   const register = async (userData) => {

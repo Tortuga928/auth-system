@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import apiService from '../../services/api';
 
 const AdminLayout = ({ children, title = 'Admin Panel' }) => {
   const location = useLocation();
@@ -37,6 +38,21 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
   ];
 
   const isActive = (path) => location.pathname === path;
+
+  const handleLogout = async () => {
+    try {
+      // Call backend to invalidate all active sessions
+      await apiService.auth.logout();
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+      // Continue with client-side logout even if API fails
+    } finally {
+      // Always clear client-side auth state
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      navigate('/login');
+    }
+  };
 
   const styles = {
     container: {
@@ -141,6 +157,21 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       textDecoration: 'none',
       fontSize: '14px',
     },
+    logoutButton: {
+      backgroundColor: '#e74c3c',
+      color: '#fff',
+      border: 'none',
+      padding: '8px 16px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '500',
+      transition: 'background-color 0.2s ease',
+      marginLeft: '10px',
+    },
+    logoutButtonHover: {
+      backgroundColor: '#c0392b',
+    },
     content: {
       flex: 1,
       padding: '30px',
@@ -217,6 +248,15 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
           <div style={styles.headerUser}>
             <span>{user.username || user.email}</span>
             <span style={styles.userBadge}>{user.role}</span>
+            <button
+              onClick={handleLogout}
+              style={styles.logoutButton}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#c0392b'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#e74c3c'}
+              title="Sign out and invalidate all sessions"
+            >
+              Sign Out
+            </button>
           </div>
         </header>
 

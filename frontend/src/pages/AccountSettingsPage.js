@@ -104,8 +104,16 @@ function AccountSettingsPage() {
       });
 
       // Auto-logout after 2.5 seconds (security best practice)
-      setTimeout(() => {
+      setTimeout(async () => {
+        try {
+          // Call backend to invalidate all active sessions
+          await apiService.auth.logout();
+        } catch (error) {
+          console.error('Logout API call failed:', error);
+          // Continue with client-side logout even if API fails
+        }
         localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
         navigate('/login');
       }, 2500);
 
@@ -138,7 +146,15 @@ function AccountSettingsPage() {
       });
 
       // Clear auth and redirect
+      try {
+        // Call backend to invalidate all active sessions
+        await apiService.auth.logout();
+      } catch (error) {
+        console.error('Logout API call failed:', error);
+        // Continue with navigation even if API fails
+      }
       localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       navigate('/', { state: { message: 'Account deleted successfully' } });
 
     } catch (err) {

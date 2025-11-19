@@ -656,6 +656,35 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
+/**
+ * Logout current user
+ *
+ * POST /api/auth/logout
+ * Requires authentication (access token in Authorization header)
+ */
+const logout = async (req, res, next) => {
+  try {
+    // User is already verified by auth middleware and attached to req.user
+    const userId = req.user.id;
+
+    // Mark all active sessions for this user as inactive
+    // This effectively logs out the user from all devices
+    const sessions = await Session.findByUserId(userId, true);
+
+    for (const session of sessions) {
+      await Session.markInactive(session.id);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Logout successful',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -664,4 +693,5 @@ module.exports = {
   verifyEmail,
   forgotPassword,
   resetPassword,
+  logout,
 };
