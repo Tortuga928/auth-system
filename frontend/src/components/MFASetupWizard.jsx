@@ -9,7 +9,7 @@
  * 4. Save Backup Codes - Display backup codes with download option
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { QRCodeCanvas as QRCode } from 'qrcode.react';
 import { useMFA } from '../hooks/useMFA';
 
@@ -23,10 +23,12 @@ const MFASetupWizard = ({ isOpen, onClose, onComplete }) => {
   // Step 2 data
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [secret, setSecret] = useState('');
-  const [userEmail, setUserEmail] = useState('');
 
   // Step 3 data
   const [totpCode, setTotpCode] = useState('');
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [isInputDisabled, setIsInputDisabled] = useState(false);
+  const codeInputRef = useRef(null);
 
   // Step 4 data
   const [backupCodes, setBackupCodes] = useState([]);
@@ -46,8 +48,6 @@ const MFASetupWizard = ({ isOpen, onClose, onComplete }) => {
         setQrCodeUrl(result.data.qrCodeUrl);
         setSecret(result.data.secret);
         setBackupCodes(result.data.backupCodes);
-        // Extract email from user context or token
-        setUserEmail(localStorage.getItem('userEmail') || 'user@example.com');
         setCurrentStep(2);
       } else {
         setError(result.error);
@@ -70,9 +70,14 @@ const MFASetupWizard = ({ isOpen, onClose, onComplete }) => {
    * Step 3: Verify TOTP - User enters code to verify
    */
   const handleVerifyCode = async () => {
-    if (totpCode.length !== 6) {
-      setError('Please enter a 6-digit code');
-      return;
+    // Clear any previous errors
+    setErrorMessage(null);
+
+    // Validate input length
+    if (!totpCode || totpCode.length !== 6) {
+      setErrorMessage('Please enter a 6-digit code');
+      setIsInputDisabled(true);
+      return; // Don't call API
     }
 
     setLoading(true);
@@ -84,28 +89,48 @@ const MFASetupWizard = ({ isOpen, onClose, onComplete }) => {
       if (result.success) {
         setCurrentStep(4);
       } else {
-        setError(result.error);
+        // API returned error - show "Invalid Code"
+        setErrorMessage('Invalid Code');
+        setIsInputDisabled(true);
       }
     } catch (err) {
-      setError('Verification failed. Please check your code and try again.');
+      console.error('MFA verification failed:', err);
+      // Show "Invalid Code" error for API failures
+      setErrorMessage('Invalid Code');
+      setIsInputDisabled(true);
     } finally {
       setLoading(false);
     }
   };
 
   /**
-   * Handle TOTP input change - auto-submit on 6 digits
+   * Handle TOTP input change - NO auto-submit
    */
   const handleTotpChange = (e) => {
     const value = e.target.value.replace(/\D/g, ''); // Only digits
     setTotpCode(value);
+    // Removed auto-submit logic - user must click "Verify Code" button
+  };
 
-    if (value.length === 6) {
-      // Auto-submit after a brief delay to show the 6th digit
-      setTimeout(() => {
-        handleVerifyCode();
-      }, 300);
-    }
+  /**
+   * Handle error dismissal
+   */
+  const handleCloseError = () => {
+    // Clear error state
+    setErrorMessage(null);
+
+    // Re-enable input
+    setIsInputDisabled(false);
+
+    // Clear code
+    setTotpCode('');
+
+    // Refocus input field
+    setTimeout(() => {
+      if (codeInputRef.current) {
+        codeInputRef.current.focus();
+      }
+    }, 100); // Small delay to ensure DOM updated
   };
 
   /**
@@ -322,8 +347,26 @@ one of these codes to log in to your account.`;
                 Enter the 6-digit code from your authenticator app to confirm everything is working:
               </p>
 
+              {/* Dismissible Error Alert */}
+              {errorMessage && (
+                <div className="mfa-error-alert">
+                  <div className="error-content">
+                    <span className="error-icon">⚠️</span>
+                    <span className="error-text">{errorMessage}</span>
+                  </div>
+                  <button
+                    className="error-close-btn"
+                    onClick={handleCloseError}
+                    aria-label="Close error"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               <div className="totp-input-container">
                 <input
+                  ref={codeInputRef}
                   type="text"
                   className="totp-input"
                   value={totpCode}
@@ -331,7 +374,7 @@ one of these codes to log in to your account.`;
                   placeholder="000000"
                   maxLength="6"
                   autoFocus
-                  disabled={loading}
+                  disabled={loading || isInputDisabled}
                 />
               </div>
 
@@ -346,6 +389,8 @@ one of these codes to log in to your account.`;
                     setCurrentStep(2);
                     setTotpCode('');
                     setError('');
+                    setErrorMessage(null);
+                    setIsInputDisabled(false);
                   }}
                   disabled={loading}
                 >
@@ -354,7 +399,7 @@ one of these codes to log in to your account.`;
                 <button
                   className="btn btn-primary"
                   onClick={handleVerifyCode}
-                  disabled={loading || totpCode.length !== 6}
+                  disabled={loading}
                 >
                   {loading ? 'Verifying...' : 'Verify Code'}
                 </button>
@@ -661,6 +706,56 @@ one of these codes to log in to your account.`;
           .totp-input:focus {
             outline: none;
             border-color: #3b82f6;
+          }
+
+          .totp-input:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+            opacity: 0.6;
+          }
+
+          .mfa-error-alert {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 0 0 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            text-align: left;
+          }
+
+          .error-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+
+          .error-icon {
+            font-size: 18px;
+            color: #c00;
+          }
+
+          .error-text {
+            color: #c00;
+            font-size: 14px;
+            font-weight: 500;
+          }
+
+          .error-close-btn {
+            background: none;
+            border: none;
+            color: #c00;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+            transition: color 0.2s;
+          }
+
+          .error-close-btn:hover {
+            color: #900;
           }
 
           .text-muted {
