@@ -8,22 +8,29 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticate } = require('../middleware/auth');
+const {
+  registrationLimiter,
+  loginLimiter,
+  passwordResetLimiter,
+} = require('../middleware/rateLimiter');
 
 /**
  * @route   POST /api/auth/register
  * @desc    Register a new user
  * @access  Public
  * @body    { username, email, password }
+ * @rateLimit 5 requests per hour
  */
-router.post('/register', authController.register);
+router.post('/register', registrationLimiter, authController.register);
 
 /**
  * @route   POST /api/auth/login
  * @desc    Login user
  * @access  Public
  * @body    { email, password }
+ * @rateLimit 10 requests per 15 minutes
  */
-router.post('/login', authController.login);
+router.post('/login', loginLimiter, authController.login);
 
 /**
  * @route   POST /api/auth/refresh
@@ -38,8 +45,9 @@ router.post('/refresh', authController.refresh);
  * @desc    Request password reset
  * @access  Public
  * @body    { email }
+ * @rateLimit 3 requests per hour
  */
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 
 /**
  * @route   POST /api/auth/reset-password/:token
