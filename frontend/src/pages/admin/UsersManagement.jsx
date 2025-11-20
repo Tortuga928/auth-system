@@ -103,20 +103,27 @@ const UsersManagement = () => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to deactivate this user? This action cannot be undone.')) {
-      return;
+    const handleDeleteUser = async (user) => {
+    const confirmMessage = `Are you sure you want to deactivate this user?
+
+User ID: ${user.id}
+Username: ${user.username}
+Email: ${user.email}
+
+This action cannot be undone.`;
+
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) {      return;
     }
 
-    try {
-      setActionLoading(true);
-      await adminApi.deleteUser(userId);
-      fetchUsers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete user');
+    try {      setActionLoading(true);
+
+      await adminApi.deleteUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been deactivated successfully!`);
+    } catch (err) {      alert(err.response?.data?.message || 'Failed to delete user');
     } finally {
-      setActionLoading(false);
-    }
+      setActionLoading(false);    }
   };
 
   const styles = {
@@ -376,7 +383,7 @@ const UsersManagement = () => {
                         <button
                           style={{ ...styles.actionBtn, ...styles.dangerBtn }}
                           title="Delete User"
-                          onClick={() => handleDeleteUser(user.id)}
+                          onClick={() => handleDeleteUser(user)}
                           disabled={actionLoading}
                         >
                           🗑️
