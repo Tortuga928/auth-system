@@ -5,12 +5,16 @@
 
 const rateLimit = require('express-rate-limit');
 
+// Disable rate limiting in test environment
+const isTestEnv = process.env.NODE_ENV === 'test';
+const skipRateLimit = (req, res, next) => next();
+
 /**
  * Registration rate limiter
  * Limits: 5 registration attempts per hour per IP
  * Prevents automated account creation and spam
  */
-const registrationLimiter = rateLimit({
+const registrationLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 requests per hour
   message: {
@@ -34,7 +38,7 @@ const registrationLimiter = rateLimit({
  * Limits: 10 login attempts per 15 minutes per IP
  * Prevents brute force password attacks
  */
-const loginLimiter = rateLimit({
+const loginLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 requests per 15 minutes
   message: {
@@ -57,7 +61,7 @@ const loginLimiter = rateLimit({
  * Limits: 3 password reset requests per hour per IP
  * Prevents email flooding and abuse
  */
-const passwordResetLimiter = rateLimit({
+const passwordResetLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // 3 requests per hour
   message: {
@@ -80,7 +84,7 @@ const passwordResetLimiter = rateLimit({
  * Limits: 5 verification requests per hour per IP
  * Prevents email flooding
  */
-const emailVerificationLimiter = rateLimit({
+const emailVerificationLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // 5 requests per hour
   message: {
@@ -103,7 +107,7 @@ const emailVerificationLimiter = rateLimit({
  * Limits: 5 MFA attempts per 15 minutes per IP
  * Prevents brute force MFA code attacks
  */
-const mfaVerificationLimiter = rateLimit({
+const mfaVerificationLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 requests per 15 minutes
   message: {
@@ -126,7 +130,7 @@ const mfaVerificationLimiter = rateLimit({
  * Limits: 100 requests per 15 minutes per IP
  * Prevents API abuse
  */
-const apiLimiter = rateLimit({
+const apiLimiter = isTestEnv ? skipRateLimit : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // 100 requests per 15 minutes
   message: {
