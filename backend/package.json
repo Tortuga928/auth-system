@@ -15,7 +15,11 @@
     "migrate:make": "knex migrate:make",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:status": "knex migrate:status",
-    "seed": "knex seed:run"
+    "seed": "knex seed:run",
+    "test:perf": "node tests/performance/load-test.js public",
+    "test:perf:auth": "node tests/performance/load-test.js auth",
+    "test:perf:admin": "node tests/performance/load-test.js admin",
+    "test:perf:all": "node tests/performance/load-test.js all"
   },
   "keywords": [
     "authentication",
@@ -53,6 +57,7 @@
     "ua-parser-js": "^1.0.41"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "eslint": "^8.44.0",
     "jest": "^29.5.0",
     "nodemon": "^3.0.1",
