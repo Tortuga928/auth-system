@@ -1,0 +1,398 @@
+# MFA API Documentation
+# Story 11.3: API Documentation
+
+paths:
+  /api/auth/mfa/setup:
+    post:
+      tags:
+        - MFA
+      summary: Start MFA setup
+      description: |
+        Generate a TOTP secret and QR code for setting up 2FA.
+
+        **Flow**:
+        1. Call this endpoint to get the QR code
+        2. User scans QR code with authenticator app (Google Authenticator, Authy, etc.)
+        3. User enters the 6-digit code from the app
+        4. Call `/api/auth/mfa/enable` to verify and enable MFA
+
+        The secret is stored but MFA is not enabled until verified.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: MFA setup initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MFASetupResponse'
+              example:
+                success: true
+                data:
+                  secret: JBSWY3DPEHPK3PXP
+                  qrCode: data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...
+                  manualEntry: JBSWY3DPEHPK3PXP
+        '400':
+          description: MFA already enabled
+          content:
+            application/json:
+              example:
+                success: false
+                message: MFA is already enabled for this account
+        '401':
+          description: Not authenticated
+
+  /api/auth/mfa/enable:
+    post:
+      tags:
+        - MFA
+      summary: Enable MFA
+      description: |
+        Verify TOTP token and enable MFA for the account.
+
+        After successful verification:
+        - MFA is enabled for the account
+        - 10 backup codes are generated and returned
+        - **Important**: Save the backup codes - they cannot be retrieved later
+
+        Backup codes can be used if you lose access to your authenticator app.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: 6-digit TOTP code from authenticator app
+            example:
+              token: '123456'
+      responses:
+        '200':
+          description: MFA enabled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupCodes'
+              example:
+                success: true
+                message: MFA enabled successfully
+                data:
+                  backupCodes:
+                    - ABCD-EFGH
+                    - IJKL-MNOP
+                    - QRST-UVWX
+                    - '1234-5678'
+                    - '9ABC-DEF0'
+                    - GHIJ-KLMN
+                    - OPQR-STUV
+                    - WXYZ-0123
+                    - '4567-89AB'
+                    - CDEF-GH12
+        '400':
+          description: Invalid TOTP token or MFA not set up
+          content:
+            application/json:
+              example:
+                success: false
+                message: Invalid verification code. Please try again.
+
+  /api/auth/mfa/disable:
+    post:
+      tags:
+        - MFA
+      summary: Disable MFA
+      description: |
+        Disable MFA for the account.
+
+        Requires password confirmation for security.
+
+        After disabling:
+        - TOTP secret is deleted
+        - Backup codes are invalidated
+        - Login will no longer require 2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  description: Current account password for confirmation
+            example:
+              password: SecureP@ss123
+      responses:
+        '200':
+          description: MFA disabled successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: MFA has been disabled
+        '400':
+          description: MFA not enabled or already disabled
+          content:
+            application/json:
+              example:
+                success: false
+                message: MFA is not enabled for this account
+        '401':
+          description: Invalid password
+          content:
+            application/json:
+              example:
+                success: false
+                message: Invalid password
+
+  /api/auth/mfa/verify:
+    post:
+      tags:
+        - MFA
+      summary: Verify TOTP during login
+      description: |
+        Complete login by verifying the TOTP code.
+
+        **When to use**: After login returns `requiresMFA: true`, use the `mfaToken` from that response along with the TOTP code from your authenticator app.
+
+        On success, returns access and refresh tokens to complete login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MFAVerifyRequest'
+            example:
+              token: '123456'
+              mfaToken: temp_mfa_challenge_token_here
+      responses:
+        '200':
+          description: MFA verification successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                success: true
+                message: Login successful
+                data:
+                  user:
+                    id: 1
+                    username: johndoe
+                    email: john@example.com
+                    role: user
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          description: Invalid TOTP code
+          content:
+            application/json:
+              example:
+                success: false
+                message: Invalid verification code. Please try again.
+        '401':
+          description: Invalid or expired MFA token
+          content:
+            application/json:
+              example:
+                success: false
+                message: Invalid or expired MFA session
+        '423':
+          description: Account locked due to too many failed attempts
+          content:
+            application/json:
+              example:
+                success: false
+                message: Account locked due to too many failed MFA attempts. Try again in 15 minutes.
+                lockedUntil: '2025-11-01T10:15:00Z'
+
+  /api/auth/mfa/verify-backup:
+    post:
+      tags:
+        - MFA
+      summary: Verify backup code during login
+      description: |
+        Complete login using a backup code instead of TOTP.
+
+        **When to use**: If you've lost access to your authenticator app, use one of your backup codes.
+
+        **Important**: Each backup code can only be used once. After use, it is invalidated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - mfaToken
+              properties:
+                code:
+                  type: string
+                  pattern: '^[A-Z0-9]{4}-[A-Z0-9]{4}$'
+                  description: Backup code (format XXXX-XXXX)
+                mfaToken:
+                  type: string
+                  description: MFA challenge token from login
+            example:
+              code: ABCD-EFGH
+              mfaToken: temp_mfa_challenge_token_here
+      responses:
+        '200':
+          description: Backup code verified, login successful
+          content:
+            application/json:
+              example:
+                success: true
+                message: Login successful
+                data:
+                  user:
+                    id: 1
+                    username: johndoe
+                    email: john@example.com
+                  accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refreshToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  backupCodesRemaining: 9
+        '400':
+          description: Invalid backup code
+          content:
+            application/json:
+              example:
+                success: false
+                message: Invalid backup code
+
+  /api/auth/mfa/backup-codes/regenerate:
+    post:
+      tags:
+        - MFA
+      summary: Regenerate backup codes
+      description: |
+        Generate a new set of 10 backup codes.
+
+        **Important**:
+        - All previous backup codes are invalidated
+        - Save the new codes immediately - they cannot be retrieved later
+        - Requires TOTP verification for security
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Current TOTP code for verification
+            example:
+              token: '123456'
+      responses:
+        '200':
+          description: New backup codes generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupCodes'
+        '400':
+          description: Invalid TOTP code or MFA not enabled
+
+  /api/auth/mfa/status:
+    get:
+      tags:
+        - MFA
+      summary: Get MFA status
+      description: Check if MFA is enabled for the current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: MFA status
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  enabled: true
+                  enabledAt: '2025-11-01T10:00:00Z'
+                  backupCodesRemaining: 8
+
+  /api/auth/mfa/reset-request:
+    post:
+      tags:
+        - MFA
+      summary: Request MFA reset via email
+      description: |
+        Request to disable MFA via email verification.
+
+        **When to use**: If you've lost access to both your authenticator app AND your backup codes.
+
+        A reset token will be sent to your email address. Use it with `/api/auth/mfa/reset-confirm` to disable MFA.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  description: Current password for verification
+            example:
+              password: SecureP@ss123
+      responses:
+        '200':
+          description: Reset email sent
+          content:
+            application/json:
+              example:
+                success: true
+                message: MFA reset instructions sent to your email
+
+  /api/auth/mfa/reset-confirm:
+    post:
+      tags:
+        - MFA
+      summary: Confirm MFA reset
+      description: Disable MFA using the reset token from email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: Reset token from email
+            example:
+              token: reset_token_from_email
+      responses:
+        '200':
+          description: MFA disabled successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: MFA has been disabled. You can now login without 2FA.
+        '400':
+          description: Invalid or expired reset token

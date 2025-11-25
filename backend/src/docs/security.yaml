@@ -1,0 +1,462 @@
+# Security & Session API Documentation
+# Story 11.3: API Documentation
+
+paths:
+  # Session Management Endpoints
+  /api/sessions:
+    get:
+      tags:
+        - Sessions
+      summary: Get active sessions
+      description: |
+        Get all active sessions for the current user.
+
+        Each session includes:
+        - Device information (browser, OS)
+        - IP address
+        - Last active timestamp
+        - Whether it's the current session
+
+        Use this to see all devices where you're logged in.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of active sessions
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  sessions:
+                    - id: 1
+                      device_name: Chrome on Windows
+                      ip_address: '192.168.1.1'
+                      user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)...
+                      last_active: '2025-11-15T14:30:00Z'
+                      is_current: true
+                      created_at: '2025-11-15T10:00:00Z'
+                    - id: 2
+                      device_name: Safari on iPhone
+                      ip_address: '192.168.1.50'
+                      user_agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)...
+                      last_active: '2025-11-14T20:00:00Z'
+                      is_current: false
+                      created_at: '2025-11-10T08:00:00Z'
+                  count: 2
+        '401':
+          description: Not authenticated
+
+  /api/sessions/{sessionId}:
+    delete:
+      tags:
+        - Sessions
+      summary: Revoke a session
+      description: |
+        Revoke (logout) a specific session.
+
+        Use this to log out from a specific device.
+
+        **Note**: You cannot revoke your current session using this endpoint. Use `/api/auth/logout` instead.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Session ID to revoke
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              example:
+                success: true
+                message: Session revoked successfully
+        '400':
+          description: Cannot revoke current session
+          content:
+            application/json:
+              example:
+                success: false
+                message: Cannot revoke current session. Use logout instead.
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              example:
+                success: false
+                message: Session not found
+
+  /api/sessions/revoke-others:
+    post:
+      tags:
+        - Sessions
+      summary: Revoke all other sessions
+      description: |
+        Revoke all sessions except the current one.
+
+        Use this to log out from all other devices at once.
+
+        **Use case**: If you suspect unauthorized access, use this to log out all other sessions.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All other sessions revoked
+          content:
+            application/json:
+              example:
+                success: true
+                message: All other sessions revoked
+                data:
+                  revokedCount: 3
+        '401':
+          description: Not authenticated
+
+  # Security Monitoring Endpoints
+  /api/security/login-history:
+    get:
+      tags:
+        - Security
+      summary: Get login history
+      description: |
+        Get paginated login attempt history.
+
+        Includes both successful and failed login attempts with:
+        - IP address
+        - Device information
+        - Location (when available)
+        - Success/failure status
+        - Failure reason (for failed attempts)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Login history
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  attempts:
+                    - id: 100
+                      ip_address: '192.168.1.1'
+                      user_agent: Mozilla/5.0 (Windows NT 10.0)...
+                      device_name: Chrome on Windows
+                      location: New York, US
+                      success: true
+                      failure_reason: null
+                      created_at: '2025-11-15T14:00:00Z'
+                    - id: 99
+                      ip_address: '10.0.0.5'
+                      user_agent: Mozilla/5.0 (Linux)...
+                      device_name: Firefox on Linux
+                      location: Unknown
+                      success: false
+                      failure_reason: Invalid password
+                      created_at: '2025-11-15T13:55:00Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    totalCount: 45
+                    totalPages: 3
+
+  /api/security/login-stats:
+    get:
+      tags:
+        - Security
+      summary: Get login statistics
+      description: |
+        Get statistics about login attempts.
+
+        Returns:
+        - Total login attempts
+        - Successful/failed counts
+        - Unique IPs and devices
+        - Most recent successful login
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Login statistics
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  totalAttempts: 150
+                  successfulAttempts: 142
+                  failedAttempts: 8
+                  uniqueIPs: 12
+                  uniqueDevices: 5
+                  lastSuccessfulLogin: '2025-11-15T14:00:00Z'
+                  failedAttemptsLast24h: 2
+
+  /api/security/events:
+    get:
+      tags:
+        - Security
+      summary: Get security events
+      description: |
+        Get paginated security events for the current user.
+
+        Security events include:
+        - Password changes
+        - MFA enabled/disabled
+        - Multiple failed login attempts
+        - New device logins
+        - Suspicious activity
+
+        Events have severity levels: low, medium, high, critical
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+          description: Filter by severity
+        - name: acknowledged
+          in: query
+          schema:
+            type: boolean
+          description: Filter by acknowledged status
+      responses:
+        '200':
+          description: Security events
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  events:
+                    - id: 10
+                      event_type: password_changed
+                      severity: medium
+                      description: Password was changed
+                      ip_address: '192.168.1.1'
+                      device_name: Chrome on Windows
+                      acknowledged: false
+                      acknowledged_at: null
+                      created_at: '2025-11-15T14:00:00Z'
+                    - id: 9
+                      event_type: new_device_login
+                      severity: low
+                      description: New device login detected
+                      ip_address: '192.168.1.50'
+                      device_name: Safari on iPhone
+                      acknowledged: true
+                      acknowledged_at: '2025-11-14T21:00:00Z'
+                      created_at: '2025-11-14T20:00:00Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    totalCount: 15
+                    totalPages: 1
+
+  /api/security/event-stats:
+    get:
+      tags:
+        - Security
+      summary: Get security event statistics
+      description: Get summary statistics of security events
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Event statistics
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  totalEvents: 25
+                  unacknowledgedCount: 3
+                  bySeverity:
+                    low: 15
+                    medium: 7
+                    high: 2
+                    critical: 1
+                  last24h: 2
+
+  /api/security/events/unacknowledged-count:
+    get:
+      tags:
+        - Security
+      summary: Get unacknowledged event count
+      description: |
+        Get the count of unacknowledged security events.
+
+        Use this to show a badge/notification count in the UI.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Unacknowledged count
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  count: 3
+
+  /api/security/events/{eventId}/acknowledge:
+    post:
+      tags:
+        - Security
+      summary: Acknowledge security event
+      description: |
+        Mark a security event as acknowledged.
+
+        Acknowledging an event means you've reviewed it and taken any necessary action.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Event acknowledged
+          content:
+            application/json:
+              example:
+                success: true
+                message: Event acknowledged
+        '404':
+          description: Event not found
+
+  /api/security/events/acknowledge-all:
+    post:
+      tags:
+        - Security
+      summary: Acknowledge all events
+      description: |
+        Mark all unacknowledged security events as acknowledged.
+
+        Use this to clear all pending notifications at once.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All events acknowledged
+          content:
+            application/json:
+              example:
+                success: true
+                message: All events acknowledged
+                data:
+                  acknowledgedCount: 5
+
+  # OAuth Endpoints
+  /api/oauth/google:
+    get:
+      tags:
+        - OAuth
+      summary: Initiate Google OAuth
+      description: |
+        Start Google OAuth2 authentication flow.
+
+        **Flow**:
+        1. Frontend redirects user to this endpoint
+        2. User is redirected to Google login
+        3. After Google auth, user is redirected to callback
+        4. Callback redirects to frontend with tokens
+      responses:
+        '302':
+          description: Redirect to Google OAuth
+
+  /api/oauth/github:
+    get:
+      tags:
+        - OAuth
+      summary: Initiate GitHub OAuth
+      description: |
+        Start GitHub OAuth2 authentication flow.
+
+        **Flow**:
+        1. Frontend redirects user to this endpoint
+        2. User is redirected to GitHub login
+        3. After GitHub auth, user is redirected to callback
+        4. Callback redirects to frontend with tokens
+      responses:
+        '302':
+          description: Redirect to GitHub OAuth
+
+  /api/oauth/status:
+    get:
+      tags:
+        - OAuth
+      summary: Check OAuth configuration
+      description: Check which OAuth providers are configured and available
+      responses:
+        '200':
+          description: OAuth status
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  google:
+                    configured: true
+                    status: Ready
+                  github:
+                    configured: true
+                    status: Ready
+                  passportInitialized: true
+
+  # Health Check
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Check if the API is running and healthy.
+
+        Returns:
+        - Server status
+        - Database connection status
+        - Redis connection status (if configured)
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              example:
+                success: true
+                message: OK
+                data:
+                  status: healthy
+                  timestamp: '2025-11-15T14:00:00Z'
+                  database: connected
+                  redis: connected
+                  uptime: 86400

@@ -1,0 +1,582 @@
+# Admin API Documentation
+# Story 11.3: API Documentation
+
+paths:
+  /api/admin/users:
+    get:
+      tags:
+        - Admin
+      summary: List all users
+      description: |
+        Get paginated list of all users with optional filtering.
+
+        **Required Role**: Admin or Super Admin
+
+        Supports filtering by role, status, and search term.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: Items per page
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [user, admin, super_admin]
+          description: Filter by role
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+          description: Filter by status
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by email or username
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Not authorized (admin role required)
+
+    post:
+      tags:
+        - Admin
+      summary: Create new user
+      description: |
+        Create a new user account.
+
+        **Required Role**: Admin or Super Admin
+
+        Admin can set any role except super_admin (only super_admin can create super_admins).
+
+        Email verification can be bypassed by setting `email_verified: true`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                role:
+                  type: string
+                  enum: [user, admin]
+                  default: user
+                email_verified:
+                  type: boolean
+                  default: false
+            example:
+              username: newuser
+              email: newuser@example.com
+              password: SecureP@ss123
+              role: user
+              email_verified: true
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: User created successfully
+                data:
+                  user:
+                    id: 10
+                    username: newuser
+                    email: newuser@example.com
+                    role: user
+                    email_verified: true
+        '400':
+          description: Validation error
+        '403':
+          description: Not authorized
+        '409':
+          description: Email already exists
+
+  /api/admin/users/search:
+    get:
+      tags:
+        - Admin
+      summary: Search users
+      description: |
+        Search users by email or username (partial match).
+
+        **Required Role**: Admin or Super Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Search query (minimum 2 characters)
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  users:
+                    - id: 1
+                      username: johndoe
+                      email: john@example.com
+                      role: user
+                    - id: 5
+                      username: john_admin
+                      email: johnadmin@example.com
+                      role: admin
+
+  /api/admin/users/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Get user details
+      description: |
+        Get detailed information about a specific user.
+
+        **Required Role**: Admin or Super Admin
+
+        Returns:
+        - Full user profile
+        - Active sessions
+        - Recent activity
+        - Security status (MFA, OAuth)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: 1
+                    username: johndoe
+                    email: john@example.com
+                    role: user
+                    email_verified: true
+                    is_active: true
+                    created_at: '2025-11-01T10:00:00Z'
+                    last_login: '2025-11-15T14:00:00Z'
+                  security:
+                    mfaEnabled: true
+                    oauthProviders: ['google']
+                  sessions:
+                    - id: 1
+                      device: Chrome on Windows
+                      last_active: '2025-11-15T14:00:00Z'
+                  recentActivity:
+                    - action: login
+                      timestamp: '2025-11-15T14:00:00Z'
+        '404':
+          description: User not found
+
+    put:
+      tags:
+        - Admin
+      summary: Update user
+      description: |
+        Update user profile, role, or status.
+
+        **Required Role**: Admin or Super Admin
+
+        **Audit Logged**: All changes are recorded in audit log.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [user, admin, super_admin]
+                is_active:
+                  type: boolean
+            example:
+              username: updated_username
+              role: admin
+      responses:
+        '200':
+          description: User updated
+        '403':
+          description: Cannot modify super_admin (unless you are super_admin)
+        '404':
+          description: User not found
+
+    delete:
+      tags:
+        - Admin
+      summary: Delete/Deactivate user
+      description: |
+        Soft delete (deactivate) a user.
+
+        **Required Role**: Admin or Super Admin
+
+        **Behavior**: Sets `is_active = false` (soft delete for audit trail)
+
+        **Hard Delete**: Only available for Super Admin via separate endpoint
+
+        **Audit Logged**: Deletion is recorded in audit log.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User deactivated
+          content:
+            application/json:
+              example:
+                success: true
+                message: User deactivated successfully
+        '403':
+          description: Cannot delete super_admin
+        '404':
+          description: User not found
+
+  /api/admin/users/{id}/role:
+    put:
+      tags:
+        - Admin
+      summary: Update user role
+      description: |
+        Change a user's role.
+
+        **Required Role**: Admin or Super Admin
+
+        **Role Restrictions**:
+        - Admin can assign: user, admin
+        - Super Admin can assign: user, admin, super_admin
+        - Cannot demote your own account
+        - Cannot demote the last super_admin
+
+        **Audit Logged**: Role changes are recorded.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [user, admin, super_admin]
+            example:
+              role: admin
+      responses:
+        '200':
+          description: Role updated
+        '403':
+          description: Not authorized to assign this role
+
+  /api/admin/users/{id}/status:
+    put:
+      tags:
+        - Admin
+      summary: Update user status
+      description: |
+        Activate or deactivate a user account.
+
+        **Required Role**: Admin or Super Admin
+
+        **Audit Logged**: Status changes are recorded.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - is_active
+              properties:
+                is_active:
+                  type: boolean
+            example:
+              is_active: false
+      responses:
+        '200':
+          description: Status updated
+        '403':
+          description: Cannot deactivate super_admin
+
+  /api/admin/audit-logs:
+    get:
+      tags:
+        - Admin
+      summary: Get audit logs
+      description: |
+        Get paginated audit logs of admin actions.
+
+        **Required Role**: Admin or Super Admin
+
+        Audit logs are immutable and track all admin actions including:
+        - User creation/updates/deletion
+        - Role changes
+        - Status changes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: admin_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by admin who performed action
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [USER_CREATE, USER_UPDATE, USER_DELETE, USER_ROLE_CHANGE, USER_STATUS_CHANGE]
+          description: Filter by action type
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter by date range start
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter by date range end
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  logs:
+                    - id: 1
+                      admin_id: 2
+                      admin_username: admin_user
+                      action: USER_ROLE_CHANGE
+                      target_id: 5
+                      details:
+                        newRole: admin
+                        previousRole: user
+                      ip_address: '192.168.1.1'
+                      created_at: '2025-11-15T14:00:00Z'
+                  pagination:
+                    page: 1
+                    pageSize: 20
+                    totalCount: 45
+                    totalPages: 3
+
+  /api/admin/dashboard/stats:
+    get:
+      tags:
+        - Admin
+      summary: Get dashboard statistics
+      description: |
+        Get overview statistics for the admin dashboard.
+
+        **Required Role**: Admin or Super Admin
+
+        **Caching**: Results are cached for 5 minutes when Redis is available.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStats'
+              example:
+                success: true
+                data:
+                  totalUsers: 150
+                  activeUsers: 142
+                  newUsersToday: 5
+                  newUsersThisWeek: 23
+                  newUsersThisMonth: 67
+                  adminCount: 3
+                  superAdminCount: 1
+                  suspendedCount: 2
+                  mfaEnabledCount: 45
+                  emailVerifiedCount: 138
+
+  /api/admin/dashboard/user-growth:
+    get:
+      tags:
+        - Admin
+      summary: Get user growth data
+      description: |
+        Get user registration trends over time.
+
+        **Required Role**: Admin or Super Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+            maximum: 365
+          description: Number of days to include
+      responses:
+        '200':
+          description: User growth data
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  growth:
+                    - date: '2025-11-15'
+                      count: 5
+                    - date: '2025-11-14'
+                      count: 8
+                    - date: '2025-11-13'
+                      count: 3
+
+  /api/admin/dashboard/activity:
+    get:
+      tags:
+        - Admin
+      summary: Get activity summary
+      description: |
+        Get recent activity summary for the dashboard.
+
+        **Required Role**: Admin or Super Admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Activity summary
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  loginAttemptsToday: 234
+                  failedLoginsToday: 12
+                  activeSessionsNow: 45
+                  securityEventsToday: 3
+
+  /api/admin/dashboard/security:
+    get:
+      tags:
+        - Admin
+      summary: Get security overview
+      description: |
+        Get security metrics for the dashboard.
+
+        **Required Role**: Admin or Super Admin
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Security overview
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  criticalAlertsCount: 1
+                  mfaEnabledPercentage: 30
+                  recentFailedLogins:
+                    - email: attacker@example.com
+                      attempts: 5
+                      lastAttempt: '2025-11-15T14:00:00Z'
+                  suspiciousActivity:
+                    - type: multiple_failed_logins
+                      description: 5 failed login attempts from IP 192.168.1.100
+                      timestamp: '2025-11-15T14:00:00Z'

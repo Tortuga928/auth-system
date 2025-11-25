@@ -7,7 +7,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const session = require('express-session');
+const swaggerUi = require('swagger-ui-express');
 const config = require('./config');
+const swaggerSpec = require('./config/swagger');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { initializePassport } = require('./config/passport');
 
@@ -26,9 +28,10 @@ const testEmailRoutes = require('./routes/test-email');
 // Create Express app
 const app = express();
 
-// Security middleware - configure helmet to allow avatars
+// Security middleware - configure helmet to allow avatars and swagger
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // Disabled for Swagger UI
 }));
 
 // CORS middleware
@@ -60,6 +63,20 @@ app.use('/uploads', (req, res, next) => {
 // Session middleware will be applied only to OAuth routes
 initializePassport(app);
 
+// Swagger API Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Auth System API Documentation',
+}));
+
+// Swagger JSON endpoint
+app.get('/api/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+console.log('📚 API Documentation available at /api/docs');
+
 // API Routes
 app.use('/health', healthRoutes);
 app.use('/api/auth', authRoutes);
@@ -82,7 +99,7 @@ app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Authentication System API',
-    version: '0.1.0',
+    version: '1.0.0',
     documentation: '/api/docs',
   });
 });

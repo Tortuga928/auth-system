@@ -1,0 +1,375 @@
+# User API Documentation
+# Story 11.3: API Documentation
+
+paths:
+  /api/user/profile:
+    get:
+      tags:
+        - User
+      summary: Get user profile
+      description: |
+        Get the current user's profile and dashboard data.
+
+        Returns:
+        - Basic user info (id, username, email, role, verification status)
+        - Security info (MFA status, linked OAuth accounts)
+        - Recent activity (last 5 activity log entries)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile data
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: 1
+                    username: johndoe
+                    email: john@example.com
+                    role: user
+                    email_verified: true
+                    avatar_url: /uploads/avatars/1-abc123.jpg
+                    created_at: '2025-11-01T10:00:00Z'
+                    updated_at: '2025-11-15T14:30:00Z'
+                  security:
+                    mfaEnabled: true
+                    mfaEnabledAt: '2025-11-05T09:00:00Z'
+                    linkedProviders:
+                      - provider: google
+                        email: john@gmail.com
+                        linkedAt: '2025-11-10T12:00:00Z'
+                  recentActivity:
+                    - action: login
+                      device: Chrome on Windows
+                      timestamp: '2025-11-15T14:00:00Z'
+                    - action: password_changed
+                      device: Chrome on Windows
+                      timestamp: '2025-11-14T10:00:00Z'
+        '401':
+          description: Not authenticated
+
+    put:
+      tags:
+        - User
+      summary: Update user profile
+      description: |
+        Update username and/or email.
+
+        **Important**: If email is changed:
+        - `email_verified` is set to false
+        - A new verification email is sent
+        - User must verify the new email address
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                  pattern: '^[a-zA-Z0-9_]+$'
+                email:
+                  type: string
+                  format: email
+            example:
+              username: john_doe_updated
+              email: newemail@example.com
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: Profile updated successfully
+                data:
+                  user:
+                    id: 1
+                    username: john_doe_updated
+                    email: newemail@example.com
+                    email_verified: false
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                invalidUsername:
+                  value:
+                    success: false
+                    message: Username must be 3-30 characters and contain only letters, numbers, and underscores
+                emailTaken:
+                  value:
+                    success: false
+                    message: Email already in use
+
+  /api/user/activity:
+    get:
+      tags:
+        - User
+      summary: Get activity history
+      description: |
+        Get paginated activity history for the current user.
+
+        Activity types include:
+        - Login/logout events
+        - Profile changes
+        - Password changes
+        - MFA setup/disable
+        - Security events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Items per page (max 100)
+      responses:
+        '200':
+          description: Activity history
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  logs:
+                    - id: 100
+                      action: login
+                      details:
+                        device: Chrome on Windows
+                        ip: 192.168.1.1
+                      created_at: '2025-11-15T14:00:00Z'
+                    - id: 99
+                      action: mfa_enabled
+                      details:
+                        method: totp
+                      created_at: '2025-11-14T10:00:00Z'
+                  pagination:
+                    page: 1
+                    pageSize: 25
+                    totalCount: 45
+                    totalPages: 2
+
+  /api/user/avatar:
+    post:
+      tags:
+        - User
+      summary: Upload avatar
+      description: |
+        Upload a new profile avatar.
+
+        **Accepted formats**: JPEG, PNG, GIF, WebP
+        **Max file size**: 5MB
+        **Processing**: Image is resized to 300x300 and optimized
+
+        Previous avatar (if any) is deleted.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, GIF, or WebP, max 5MB)
+      responses:
+        '200':
+          description: Avatar uploaded successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: Avatar uploaded successfully
+                data:
+                  avatarUrl: /uploads/avatars/1-abc123def456.jpg
+        '400':
+          description: Invalid file
+          content:
+            application/json:
+              examples:
+                noFile:
+                  value:
+                    success: false
+                    message: No file uploaded
+                invalidType:
+                  value:
+                    success: false
+                    message: Invalid file type. Allowed types are JPEG, PNG, GIF, WebP
+                tooLarge:
+                  value:
+                    success: false
+                    message: File too large. Maximum size is 5MB
+
+    delete:
+      tags:
+        - User
+      summary: Delete avatar
+      description: |
+        Remove the current profile avatar.
+
+        The avatar file is deleted from storage and the user's avatar_url is set to null.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Avatar deleted successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: Avatar deleted successfully
+        '404':
+          description: No avatar to delete
+          content:
+            application/json:
+              example:
+                success: false
+                message: No avatar found
+
+  /api/user/change-password:
+    post:
+      tags:
+        - User
+      summary: Change password
+      description: |
+        Change the current user's password.
+
+        **Requires**: Current password for verification
+
+        **Password requirements**:
+        - Minimum 8 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one number
+        - At least one special character
+
+        After password change:
+        - All other sessions are invalidated
+        - User must login again on other devices
+        - A confirmation email is sent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  description: Current password
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: New password (must meet strength requirements)
+            example:
+              currentPassword: OldP@ssword123
+              newPassword: NewSecureP@ss456
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: Password changed successfully
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              examples:
+                weakPassword:
+                  value:
+                    success: false
+                    message: Password does not meet requirements
+                    errors:
+                      - Must contain at least one special character
+                samePassword:
+                  value:
+                    success: false
+                    message: New password must be different from current password
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              example:
+                success: false
+                message: Current password is incorrect
+
+  /api/user/account:
+    delete:
+      tags:
+        - User
+      summary: Delete account
+      description: |
+        Permanently delete the user account.
+
+        **Requires**: Password confirmation
+
+        **Warning**: This action cannot be undone!
+
+        Deletes:
+        - User profile and data
+        - All sessions
+        - Activity history
+        - Avatar file
+        - OAuth account links
+        - MFA configuration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  description: Current password for confirmation
+            example:
+              password: SecureP@ss123
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              example:
+                success: true
+                message: Account deleted successfully
+        '401':
+          description: Password incorrect
+          content:
+            application/json:
+              example:
+                success: false
+                message: Incorrect password
