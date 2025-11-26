@@ -11,7 +11,7 @@ const Session = require('../models/Session');
 const bcrypt = require('bcrypt');
 const { verifyMFAChallengeToken, generateTokenPair } = require('../utils/jwt');
 const crypto = require('crypto');
-const { sendMFAResetEmail } = require('../services/emailService');
+const { sendMFAResetEmail } = require('../services/dynamicEmailService');
 const { extractSessionMetadata } = require('../utils/sessionUtils');
 
 /**

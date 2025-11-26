@@ -79,4 +79,18 @@ router.get('/me', authenticate, authController.getCurrentUser);
  */
 router.post('/logout', authenticate, authController.logout);
 
+/**
+ * @route   POST /api/auth/resend-verification
+ * @desc    Resend email verification
+ * @access  Private (requires authentication)
+ */
+router.post('/resend-verification', authenticate, authController.resendVerificationEmail);
+
+/**
+ * @route   GET /api/auth/verification-settings
+ * @desc    Get email verification settings
+ * @access  Public
+ */
+router.get('/verification-settings', authController.getEmailVerificationSettings);
+
 module.exports = router;
