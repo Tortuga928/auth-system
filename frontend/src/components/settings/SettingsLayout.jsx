@@ -1,28 +1,28 @@
 /**
- * Admin Layout Component
+ * Settings Layout Component
  *
- * Provides shared layout for all admin pages including sidebar navigation,
+ * Provides shared layout for all settings pages including sidebar navigation,
  * header with user info, and main content area.
+ * Restricted to Super Admin users only.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 
-const AdminLayout = ({ children, title = 'Admin Panel' }) => {
+const SettingsLayout = ({ children, title = 'Settings' }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     // Get user from localStorage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       const userData = JSON.parse(storedUser);
-      // Check if user is admin
-      if (userData.role !== 'admin' && userData.role !== 'super_admin') {
-        navigate('/dashboard');
+      // Check if user is super admin - Settings is restricted to super admin only
+      if (userData.role !== 'super_admin') {
+        navigate('/admin/dashboard');
         return;
       }
       setUser(userData);
@@ -31,29 +31,19 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
     }
   }, [navigate]);
 
-  // Base menu items for all admins
-  const baseMenuItems = [
-    { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/admin/users', label: 'Users', icon: '👥' },
-    { path: '/admin/audit-logs', label: 'Audit Logs', icon: '📋' },
+  const menuItems = [
+    { path: '/settings/home', label: 'Home', icon: '🏠', description: 'Overview and warnings' },
+    { path: '/settings/email', label: 'Email', icon: '📧', description: 'Email service configuration' },
   ];
-
-  // Add Settings link for super admins only
-  const menuItems = user?.role === 'super_admin'
-    ? [...baseMenuItems, { path: '/settings/home', label: 'Settings', icon: '⚙️' }]
-    : baseMenuItems;
 
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = async () => {
     try {
-      // Call backend to invalidate all active sessions
       await apiService.auth.logout();
     } catch (error) {
       console.error('Logout API call failed:', error);
-      // Continue with client-side logout even if API fails
     } finally {
-      // Always clear client-side auth state
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       navigate('/login');
@@ -67,10 +57,9 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       backgroundColor: '#f5f6fa',
     },
     sidebar: {
-      width: sidebarCollapsed ? '60px' : '250px',
-      backgroundColor: '#2c3e50',
-      color: '#ecf0f1',
-      transition: 'width 0.3s ease',
+      width: '220px',
+      backgroundColor: '#1a1a2e',
+      color: '#eee',
       display: 'flex',
       flexDirection: 'column',
       position: 'fixed',
@@ -79,24 +68,14 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
     },
     sidebarHeader: {
       padding: '20px',
-      borderBottom: '1px solid #34495e',
+      borderBottom: '1px solid #2d2d44',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+      gap: '10px',
     },
     logo: {
-      fontSize: sidebarCollapsed ? '20px' : '18px',
-      fontWeight: 'bold',
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-    },
-    collapseBtn: {
-      background: 'none',
-      border: 'none',
-      color: '#ecf0f1',
-      cursor: 'pointer',
       fontSize: '18px',
-      padding: '5px',
+      fontWeight: 'bold',
     },
     nav: {
       flex: 1,
@@ -104,45 +83,73 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
     },
     navItem: {
       display: 'flex',
-      padding: sidebarCollapsed ? '15px 20px' : '12px 20px',
-      color: '#bdc3c7',
+      padding: '14px 20px',
+      color: '#aaa',
       textDecoration: 'none',
       transition: 'all 0.2s ease',
       alignItems: 'center',
-      gap: '10px',
+      gap: '12px',
       fontSize: '14px',
+      borderLeft: '3px solid transparent',
     },
     navItemActive: {
-      backgroundColor: '#34495e',
-      color: '#3498db',
-      borderLeft: '3px solid #3498db',
+      backgroundColor: '#2d2d44',
+      color: '#6c5ce7',
+      borderLeft: '3px solid #6c5ce7',
+    },
+    navItemHover: {
+      backgroundColor: '#242442',
+      color: '#ddd',
     },
     navIcon: {
       fontSize: '18px',
     },
     navLabel: {
-      display: sidebarCollapsed ? 'none' : 'inline',
+      fontWeight: '500',
+    },
+    navDescription: {
+      fontSize: '11px',
+      color: '#777',
+      marginTop: '2px',
+    },
+    backLink: {
+      padding: '15px 20px',
+      borderTop: '1px solid #2d2d44',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      color: '#888',
+      textDecoration: 'none',
+      fontSize: '13px',
+      transition: 'all 0.2s ease',
     },
     main: {
       flex: 1,
-      marginLeft: sidebarCollapsed ? '60px' : '250px',
-      transition: 'margin-left 0.3s ease',
+      marginLeft: '220px',
       display: 'flex',
       flexDirection: 'column',
     },
     header: {
       backgroundColor: '#fff',
       padding: '15px 30px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
     },
     headerTitle: {
-      fontSize: '24px',
-      fontWeight: 'bold',
+      fontSize: '22px',
+      fontWeight: '600',
       color: '#2c3e50',
       margin: 0,
+    },
+    headerBreadcrumb: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontSize: '12px',
+      color: '#888',
+      marginTop: '4px',
     },
     headerUser: {
       display: 'flex',
@@ -150,18 +157,14 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       gap: '10px',
     },
     userBadge: {
-      backgroundColor: user?.role === 'super_admin' ? '#9b59b6' : '#3498db',
+      backgroundColor: '#6c5ce7',
       color: '#fff',
       padding: '4px 12px',
       borderRadius: '20px',
-      fontSize: '12px',
+      fontSize: '11px',
       fontWeight: 'bold',
       textTransform: 'uppercase',
-    },
-    backLink: {
-      color: '#7f8c8d',
-      textDecoration: 'none',
-      fontSize: '14px',
+      letterSpacing: '0.5px',
     },
     logoutButton: {
       backgroundColor: '#e74c3c',
@@ -170,13 +173,10 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       padding: '8px 16px',
       borderRadius: '4px',
       cursor: 'pointer',
-      fontSize: '14px',
+      fontSize: '13px',
       fontWeight: '500',
       transition: 'background-color 0.2s ease',
       marginLeft: '10px',
-    },
-    logoutButtonHover: {
-      backgroundColor: '#c0392b',
     },
     content: {
       flex: 1,
@@ -184,16 +184,20 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
     },
     footer: {
       backgroundColor: '#fff',
-      padding: '15px 30px',
+      padding: '12px 30px',
       borderTop: '1px solid #ecf0f1',
       fontSize: '12px',
-      color: '#7f8c8d',
+      color: '#999',
       textAlign: 'center',
     },
   };
 
   if (!user) {
-    return <div style={{ padding: '50px', textAlign: 'center' }}>Loading...</div>;
+    return (
+      <div style={{ padding: '50px', textAlign: 'center', color: '#666' }}>
+        Loading...
+      </div>
+    );
   }
 
   return (
@@ -201,27 +205,8 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
       {/* Sidebar */}
       <aside style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
-          <span style={styles.logo}>
-            {sidebarCollapsed ? '🔐' : '🔐 Admin Panel'}
-          </span>
-          {!sidebarCollapsed && (
-            <button
-              style={styles.collapseBtn}
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              title="Collapse sidebar"
-            >
-              ◀
-            </button>
-          )}
-          {sidebarCollapsed && (
-            <button
-              style={styles.collapseBtn}
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              title="Expand sidebar"
-            >
-              ▶
-            </button>
-          )}
+          <span style={{ fontSize: '22px' }}>⚙️</span>
+          <span style={styles.logo}>Settings</span>
         </div>
 
         <nav style={styles.nav}>
@@ -233,13 +218,20 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
                 ...styles.navItem,
                 ...(isActive(item.path) ? styles.navItemActive : {}),
               }}
-              title={sidebarCollapsed ? item.label : ''}
+              title={item.description}
             >
               <span style={styles.navIcon}>{item.icon}</span>
-              <span style={styles.navLabel}>{item.label}</span>
+              <div>
+                <div style={styles.navLabel}>{item.label}</div>
+                <div style={styles.navDescription}>{item.description}</div>
+              </div>
             </Link>
           ))}
         </nav>
+
+        <Link to="/admin/dashboard" style={styles.backLink}>
+          ← Back to Admin Panel
+        </Link>
       </aside>
 
       {/* Main Content */}
@@ -247,19 +239,23 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
         <header style={styles.header}>
           <div>
             <h1 style={styles.headerTitle}>{title}</h1>
-            <Link to="/dashboard" style={styles.backLink}>
-              ← Back to User Dashboard
-            </Link>
+            <div style={styles.headerBreadcrumb}>
+              <Link to="/admin/dashboard" style={{ color: '#888', textDecoration: 'none' }}>
+                Admin
+              </Link>
+              <span>/</span>
+              <span style={{ color: '#6c5ce7' }}>Settings</span>
+            </div>
           </div>
           <div style={styles.headerUser}>
-            <span>{user.username || user.email}</span>
+            <span style={{ fontSize: '14px', color: '#555' }}>{user.username || user.email}</span>
             <span style={styles.userBadge}>{user.role}</span>
             <button
               onClick={handleLogout}
               style={styles.logoutButton}
               onMouseEnter={(e) => e.target.style.backgroundColor = '#c0392b'}
               onMouseLeave={(e) => e.target.style.backgroundColor = '#e74c3c'}
-              title="Sign out and invalidate all sessions"
+              title="Sign out"
             >
               Sign Out
             </button>
@@ -269,11 +265,11 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
         <main style={styles.content}>{children}</main>
 
         <footer style={styles.footer}>
-          <p>Admin Panel v1.0.0 | Authentication System &copy; 2025</p>
+          <p style={{ margin: 0 }}>System Settings | Super Admin Access Only</p>
         </footer>
       </div>
     </div>
   );
 };
 
-export default AdminLayout;
+export default SettingsLayout;

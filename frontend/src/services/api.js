@@ -124,6 +124,34 @@ const apiService = {
     getUnacknowledgedCount: () =>
       api.get('/api/security/events/unacknowledged-count'),
   },
+
+  // Settings endpoints (Super Admin only)
+  settings: {
+    // Email verification settings
+    getEmailSettings: () => api.get('/api/admin/settings/email'),
+    updateEmailSettings: (data) => api.put('/api/admin/settings/email', data),
+
+    // Email service CRUD
+    getEmailServices: () => api.get('/api/admin/settings/email-services'),
+    getEmailService: (id) => api.get(`/api/admin/settings/email-services/${id}`),
+    createEmailService: (data) => api.post('/api/admin/settings/email-services', data),
+    updateEmailService: (id, data) => api.put(`/api/admin/settings/email-services/${id}`, data),
+    deleteEmailService: (id) => api.delete(`/api/admin/settings/email-services/${id}`),
+
+    // Email service actions
+    activateEmailService: (id) => api.post(`/api/admin/settings/email-services/${id}/activate`),
+    deactivateEmailService: (id) => api.post(`/api/admin/settings/email-services/${id}/deactivate`),
+    testEmailConnection: (id) => api.post(`/api/admin/settings/email-services/${id}/test-connection`),
+    testSendEmail: (id, data) => api.post(`/api/admin/settings/email-services/${id}/test-send`, data),
+    previewEmailTemplate: (id) => api.get(`/api/admin/settings/email-services/${id}/preview-template`),
+
+    // Provider instructions
+    getProviderInstructions: (type) => api.get(`/api/admin/settings/email-providers/${type}/instructions`),
+
+    // Audit log
+    getSettingsAuditLog: (page = 1, limit = 50) =>
+      api.get(`/api/admin/settings/audit-log?page=${page}&limit=${limit}`),
+  },
 };
 
 export default apiService;
