@@ -1,8 +1,10 @@
 # Edit User Feature - Implementation Plan
 
-**Status**: In Progress
+**Status**: ✅ COMPLETE - Deployed to Beta
 **Created**: November 26, 2025
-**Branch**: `feature/10.1-admin-permissions` (staging)
+**Completed**: November 26, 2025
+**Branch**: `beta` (merged from staging)
+**Commit**: `d2b180b feat(admin): add edit user functionality to admin panel`
 **Story**: Enhancement to Story 10.5 - Admin Panel UI
 **Priority**: HIGH
 
@@ -16,7 +18,7 @@ Add the ability for admins to edit user details from the Users Management page. 
 
 ## Current Progress
 
-### Backend - PARTIALLY COMPLETE (Uncommitted)
+### Backend - ✅ COMPLETE
 
 File: `backend/src/controllers/adminController.js`
 
@@ -24,6 +26,7 @@ File: `backend/src/controllers/adminController.js`
 - [x] Password update handling - hashes password if provided in updates
 - [x] Email verification reset - sets `email_verified = false` when email changes
 - [x] Enhanced response messages - includes notification about email verification reset
+- [x] Committed and deployed to beta
 
 **Code Added** (lines ~222-248 in updateUser function):
 ```javascript
@@ -45,11 +48,12 @@ if (updates.email && updates.email !== existingUser.email) {
 }
 ```
 
-### Frontend - NOT STARTED
+### Frontend - ✅ COMPLETE
 
-- [ ] Edit User Modal component
-- [ ] Edit button in Users Management table
-- [ ] Integration with existing page
+- [x] Edit User Modal component (~250 lines, inline in UsersManagement.jsx)
+- [x] Edit button in Users Management table (pencil icon with light gray bg, dark border)
+- [x] Integration with existing page (state, handlers, modal rendering)
+- [x] Committed and deployed to beta
 
 ---
 
