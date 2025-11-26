@@ -18,6 +18,8 @@ const UsersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
@@ -129,6 +131,18 @@ Email: ${user.email}`;
     }
   };
 
+  const handleEditClick = (user) => {
+    setSelectedUser(user);
+    setShowEditModal(true);
+  };
+
+  const handleEditSuccess = (message) => {
+    setShowEditModal(false);
+    setSelectedUser(null);
+    fetchUsers();
+    alert(message || 'User updated successfully!');
+  };
+
   const styles = {
     controls: {
       display: 'flex',
@@ -174,6 +188,10 @@ Email: ${user.email}`;
     warningBtn: {
       backgroundColor: '#f39c12',
       color: '#fff',
+    },
+    editBtn: {
+      backgroundColor: '#e0e0e0',
+      border: '1px solid #666',
     },
     table: {
       width: '100%',
@@ -360,6 +378,14 @@ Email: ${user.email}`;
                       </td>
                       <td style={styles.td}>{new Date(user.created_at).toLocaleDateString()}</td>
                       <td style={styles.td}>
+                        <button
+                          style={{ ...styles.actionBtn, ...styles.editBtn }}
+                          title="Edit User"
+                          onClick={() => handleEditClick(user)}
+                          disabled={actionLoading}
+                        >
+                          ✏️
+                        </button>
                         <Link to={`/admin/users/${user.id}`}>
                           <button style={{ ...styles.actionBtn, ...styles.primaryBtn }} title="View Details">
                             👁️
@@ -455,6 +481,18 @@ Email: ${user.email}`;
             setShowCreateModal(false);
             fetchUsers();
           }}
+        />
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <EditUserModal
+          user={selectedUser}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedUser(null);
+          }}
+          onSuccess={handleEditSuccess}
         />
       )}
     </AdminLayout>
@@ -613,6 +651,293 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
               disabled={loading}
             >
               {loading ? 'Creating...' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Edit User Modal Component
+const EditUserModal = ({ user, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    username: user.username || '',
+    email: user.email || '',
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    role: user.role || 'user',
+    password: '',
+    confirmPassword: '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Validate password match if password is provided
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Validate password length if provided
+    if (formData.password && formData.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Build update data (exclude confirmPassword and empty password)
+      const updateData = {
+        username: formData.username,
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        role: formData.role,
+      };
+
+      // Only include password if provided
+      if (formData.password && formData.password.trim() !== '') {
+        updateData.password = formData.password;
+      }
+
+      const response = await adminApi.updateUser(user.id, updateData);
+      onSuccess(response.data.message);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const modalStyles = {
+    overlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2000,
+    },
+    modal: {
+      backgroundColor: '#fff',
+      borderRadius: '8px',
+      padding: '30px',
+      width: '450px',
+      maxWidth: '90%',
+      maxHeight: '90vh',
+      overflowY: 'auto',
+    },
+    title: {
+      fontSize: '20px',
+      marginBottom: '20px',
+      color: '#2c3e50',
+    },
+    formGroup: {
+      marginBottom: '15px',
+    },
+    label: {
+      display: 'block',
+      marginBottom: '5px',
+      fontWeight: 'bold',
+      fontSize: '14px',
+    },
+    input: {
+      width: '100%',
+      padding: '8px',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      fontSize: '14px',
+      boxSizing: 'border-box',
+    },
+    hint: {
+      fontSize: '12px',
+      color: '#666',
+      marginTop: '4px',
+    },
+    warning: {
+      fontSize: '12px',
+      color: '#f39c12',
+      marginTop: '4px',
+    },
+    passwordWrapper: {
+      position: 'relative',
+    },
+    eyeBtn: {
+      position: 'absolute',
+      right: '8px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '4px',
+    },
+    divider: {
+      borderTop: '1px solid #eee',
+      margin: '20px 0',
+      paddingTop: '15px',
+    },
+    dividerLabel: {
+      fontSize: '14px',
+      color: '#666',
+      marginBottom: '15px',
+    },
+    buttons: {
+      display: 'flex',
+      gap: '10px',
+      marginTop: '20px',
+    },
+    btn: {
+      flex: 1,
+      padding: '10px',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontWeight: 'bold',
+    },
+    error: {
+      color: '#e74c3c',
+      marginBottom: '15px',
+      fontSize: '14px',
+      backgroundColor: '#ffeaea',
+      padding: '10px',
+      borderRadius: '4px',
+    },
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <h2 style={modalStyles.title}>Edit User: {user.username}</h2>
+        {error && <div style={modalStyles.error}>{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>Username *</label>
+            <input
+              type="text"
+              style={modalStyles.input}
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              required
+              minLength="3"
+              maxLength="50"
+            />
+          </div>
+
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>Email *</label>
+            <input
+              type="email"
+              style={modalStyles.input}
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+            />
+            {formData.email !== user.email && (
+              <div style={modalStyles.warning}>
+                Warning: Changing email will require re-verification
+              </div>
+            )}
+          </div>
+
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>First Name</label>
+            <input
+              type="text"
+              style={modalStyles.input}
+              value={formData.first_name}
+              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+            />
+          </div>
+
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>Last Name</label>
+            <input
+              type="text"
+              style={modalStyles.input}
+              value={formData.last_name}
+              onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+            />
+          </div>
+
+          <div style={modalStyles.formGroup}>
+            <label style={modalStyles.label}>Role *</label>
+            <select
+              style={modalStyles.input}
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+
+          <div style={modalStyles.divider}>
+            <div style={modalStyles.dividerLabel}>Password Reset (Optional)</div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>New Password</label>
+              <div style={modalStyles.passwordWrapper}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  style={{ ...modalStyles.input, paddingRight: '35px' }}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  minLength="8"
+                  placeholder="Leave blank to keep current"
+                />
+                <button
+                  type="button"
+                  style={modalStyles.eyeBtn}
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <div style={modalStyles.hint}>Leave blank to keep current password</div>
+            </div>
+
+            <div style={modalStyles.formGroup}>
+              <label style={modalStyles.label}>Confirm Password</label>
+              <div style={modalStyles.passwordWrapper}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  style={{ ...modalStyles.input, paddingRight: '35px' }}
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  placeholder="Confirm new password"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div style={modalStyles.buttons}>
+            <button
+              type="button"
+              style={{ ...modalStyles.btn, backgroundColor: '#95a5a6', color: '#fff' }}
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{ ...modalStyles.btn, backgroundColor: '#3498db', color: '#fff' }}
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

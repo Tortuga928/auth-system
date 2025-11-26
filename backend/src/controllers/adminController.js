@@ -213,6 +213,21 @@ exports.updateUser = async (req, res) => {
       }
     });
 
+    // Handle password update separately (requires hashing)
+    let passwordChanged = false;
+    if (updates.password && updates.password.trim() !== '') {
+      const passwordHash = await bcrypt.hash(updates.password, 10);
+      filteredUpdates.password_hash = passwordHash;
+      passwordChanged = true;
+    }
+
+    // If email is being changed, reset email_verified to false
+    let emailChanged = false;
+    if (updates.email && updates.email !== existingUser.email) {
+      filteredUpdates.email_verified = false;
+      emailChanged = true;
+    }
+
     if (Object.keys(filteredUpdates).length === 0) {
       return res.status(400).json({
         success: false,
@@ -222,9 +237,22 @@ exports.updateUser = async (req, res) => {
 
     const user = await User.update(parseInt(id, 10), filteredUpdates);
 
+    // Build response message with relevant notifications
+    let message = 'User updated successfully';
+    const notifications = [];
+    if (emailChanged) {
+      notifications.push('Email verification has been reset');
+    }
+    if (passwordChanged) {
+      notifications.push('Password has been changed');
+    }
+    if (notifications.length > 0) {
+      message += '. ' + notifications.join('. ') + '.';
+    }
+
     res.status(200).json({
       success: true,
-      message: 'User updated successfully',
+      message,
       data: { user },
     });
   } catch (error) {
