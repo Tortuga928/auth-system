@@ -377,25 +377,14 @@ This action cannot be undone.`;
                           <option value="admin">Admin</option>
                           <option value="super_admin">Super Admin</option>
                         </select>
-                        {user.is_active ? (
-                          <button
-                            style={{ ...styles.actionBtn, ...styles.dangerBtn }}
-                            title="Deactivate User"
-                            onClick={() => handleDeactivateUser(user)}
-                            disabled={actionLoading}
-                          >
-                            🚫
-                          </button>
-                        ) : (
-                          <button
-                            style={{ ...styles.actionBtn, ...styles.successBtn }}
-                            title="Reactivate User"
-                            onClick={() => handleReactivateUser(user)}
-                            disabled={actionLoading}
-                          >
-                            🔓
-                          </button>
-                        )}
+                        <button
+                          style={{ ...styles.actionBtn, ...(user.is_active ? styles.successBtn : styles.dangerBtn) }}
+                          title={user.is_active ? "Deactivate User" : "Reactivate User"}
+                          onClick={() => user.is_active ? handleDeactivateUser(user) : handleReactivateUser(user)}
+                          disabled={actionLoading}
+                        >
+                          ⏻
+                        </button>
                       </td>
                     </tr>
                   ))
