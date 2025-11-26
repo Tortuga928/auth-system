@@ -92,9 +92,7 @@ const UsersManagement = () => {
 
 User ID: ${user.id}
 Username: ${user.username}
-Email: ${user.email}
-
-This action cannot be undone.`;
+Email: ${user.email}`;
 
     const confirmed = window.confirm(confirmMessage);
     if (!confirmed) {
