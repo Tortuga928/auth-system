@@ -26,6 +26,7 @@ import UserDetailPage from './pages/admin/UserDetailPage';
 import AuditLogs from './pages/admin/AuditLogs';
 // Settings (Super Admin only)
 import SettingsHome from './pages/settings/SettingsHome';
+import EmailSettings from './pages/settings/EmailSettings';
 import apiService from './services/api';
 import './App.css';
 
@@ -128,6 +129,7 @@ function App() {
             <Route path="/security-alerts" element={<SecurityAlertsPage />} />
             {/* Settings routes (Super Admin only) */}
             <Route path="/settings/home" element={<SettingsHome />} />
+            <Route path="/settings/email" element={<EmailSettings />} />
           </Routes>
         </main>
 
