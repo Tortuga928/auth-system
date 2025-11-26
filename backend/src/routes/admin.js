@@ -102,6 +102,16 @@ router.put('/users/:id/role', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_ROLE_
 router.put('/users/:id/status', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_STATUS_CHANGE, (req, data) => ({ targetId: parseInt(req.params.id), details: { is_active: req.body.is_active } })), adminController.updateUserStatus);
 
 /**
+ * @route   PUT /api/admin/users/:id/reactivate
+ * @desc    Reactivate an inactive user account
+ * @param   id - User ID
+ * @access  Admin
+ *
+ * Sets is_active = true for a deactivated user
+ */
+router.put('/users/:id/reactivate', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_STATUS_CHANGE, (req, data) => ({ targetId: parseInt(req.params.id), details: { is_active: true, action: 'reactivate' } })), adminController.reactivateUser);
+
+/**
  * @route   GET /api/admin/audit-logs
  * @desc    Get audit logs of admin actions
  * @query   page, pageSize, admin_id, action, start_date, end_date

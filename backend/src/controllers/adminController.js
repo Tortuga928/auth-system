@@ -444,6 +444,58 @@ exports.updateUserStatus = async (req, res) => {
 };
 
 /**
+ * Reactivate user
+ */
+exports.reactivateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user exists
+    const user = await User.findById(parseInt(id, 10));
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if user is already active
+    if (user.is_active) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already active',
+      });
+    }
+
+    // Reactivate user
+    const success = await User.activate(parseInt(id, 10));
+
+    if (!success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to reactivate user',
+      });
+    }
+
+    // Get updated user
+    const updatedUser = await User.findById(parseInt(id, 10));
+
+    res.status(200).json({
+      success: true,
+      message: 'User reactivated successfully',
+      data: { user: updatedUser },
+    });
+  } catch (error) {
+    console.error('Reactivate user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reactivate user',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Search users
  */
 exports.searchUsers = async (req, res) => {

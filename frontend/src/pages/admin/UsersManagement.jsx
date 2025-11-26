@@ -71,22 +71,6 @@ const UsersManagement = () => {
     }
   };
 
-  const handleStatusToggle = async (userId, currentStatus) => {
-    if (!window.confirm(`Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this user?`)) {
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      await adminApi.updateUserStatus(userId, !currentStatus);
-      fetchUsers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update user status');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleRoleChange = async (userId, newRole) => {
     if (!window.confirm(`Are you sure you want to change this user's role to ${newRole}?`)) {
       return;
@@ -103,7 +87,7 @@ const UsersManagement = () => {
     }
   };
 
-    const handleDeleteUser = async (user) => {
+  const handleDeactivateUser = async (user) => {
     const confirmMessage = `Are you sure you want to deactivate this user?
 
 User ID: ${user.id}
@@ -113,17 +97,38 @@ Email: ${user.email}
 This action cannot be undone.`;
 
     const confirmed = window.confirm(confirmMessage);
-    if (!confirmed) {      return;
+    if (!confirmed) {
+      return;
     }
 
-    try {      setActionLoading(true);
-
+    try {
+      setActionLoading(true);
       await adminApi.deleteUser(user.id);
       await fetchUsers();
       alert(`User "${user.username}" has been deactivated successfully!`);
-    } catch (err) {      alert(err.response?.data?.message || 'Failed to delete user');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to deactivate user');
     } finally {
-      setActionLoading(false);    }
+      setActionLoading(false);
+    }
+  };
+
+  const handleReactivateUser = async (user) => {
+    const confirmed = window.confirm(`Are you sure you want to reactivate this user?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await adminApi.reactivateUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been reactivated successfully!`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to reactivate user');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const styles = {
@@ -362,14 +367,6 @@ This action cannot be undone.`;
                             👁️
                           </button>
                         </Link>
-                        <button
-                          style={{ ...styles.actionBtn, ...styles.warningBtn }}
-                          title={user.is_active ? 'Deactivate' : 'Activate'}
-                          onClick={() => handleStatusToggle(user.id, user.is_active)}
-                          disabled={actionLoading}
-                        >
-                          {user.is_active ? '🔒' : '🔓'}
-                        </button>
                         <select
                           style={{ ...styles.actionBtn, padding: '4px', fontSize: '11px' }}
                           value={user.role}
@@ -380,14 +377,25 @@ This action cannot be undone.`;
                           <option value="admin">Admin</option>
                           <option value="super_admin">Super Admin</option>
                         </select>
-                        <button
-                          style={{ ...styles.actionBtn, ...styles.dangerBtn }}
-                          title="Delete User"
-                          onClick={() => handleDeleteUser(user)}
-                          disabled={actionLoading}
-                        >
-                          🗑️
-                        </button>
+                        {user.is_active ? (
+                          <button
+                            style={{ ...styles.actionBtn, ...styles.dangerBtn }}
+                            title="Deactivate User"
+                            onClick={() => handleDeactivateUser(user)}
+                            disabled={actionLoading}
+                          >
+                            🚫
+                          </button>
+                        ) : (
+                          <button
+                            style={{ ...styles.actionBtn, ...styles.successBtn }}
+                            title="Reactivate User"
+                            onClick={() => handleReactivateUser(user)}
+                            disabled={actionLoading}
+                          >
+                            🔓
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))

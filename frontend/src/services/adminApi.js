@@ -32,6 +32,7 @@ const adminApi = {
   deleteUser: (id) => api.delete(`/api/admin/users/${id}`),
   updateUserRole: (id, role) => api.put(`/api/admin/users/${id}/role`, { role }),
   updateUserStatus: (id, isActive) => api.put(`/api/admin/users/${id}/status`, { is_active: isActive }),
+  reactivateUser: (id) => api.put(`/api/admin/users/${id}/reactivate`),
   searchUsers: (query, limit = 10) => api.get(`/api/admin/users/search?q=${encodeURIComponent(query)}&limit=${limit}`),
 
   // Audit logs

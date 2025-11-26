@@ -69,7 +69,7 @@ class User {
    */
   static async findById(id) {
     const query = `
-      SELECT id, username, email, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
+      SELECT id, username, email, first_name, last_name, role, email_verified, is_active, avatar_url, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -86,7 +86,7 @@ class User {
    */
   static async findByIdWithPassword(id) {
     const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
+      SELECT id, username, email, password_hash, first_name, last_name, role, email_verified, is_active, avatar_url, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -199,7 +199,7 @@ class User {
       UPDATE users
       SET ${fields.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, username, email, first_name, last_name, role, email_verified, avatar_url, created_at, updated_at
+      RETURNING id, username, email, first_name, last_name, role, email_verified, is_active, avatar_url, created_at, updated_at
     `;
 
     const result = await db.query(query, values);
