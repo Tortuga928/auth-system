@@ -25,6 +25,7 @@ const securityRoutes = require('./routes/security');
 const adminRoutes = require('./routes/admin');
 const settingsRoutes = require('./routes/settings');
 const mfaAdminRoutes = require('./routes/mfaAdmin');
+const email2faRoutes = require('./routes/email2fa');
 const testEmailRoutes = require('./routes/test-email');
 
 // Create Express app
@@ -91,6 +92,7 @@ app.use('/api/security', securityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/admin/mfa', mfaAdminRoutes);
+app.use('/api/auth/mfa', email2faRoutes);
 
 // Test routes (development only)
 if (config.env === 'development') {
