@@ -100,7 +100,7 @@ class Email2FACode {
     const result = await db.query(query, [userId]);
 
     if (result.rows.length === 0) {
-      return { valid: false, reason: 'no_code', codeRecord: null };
+      return { success: false, reason: 'no_code', codeRecord: null };
     }
 
     const codeRecord = result.rows[0];
@@ -108,7 +108,7 @@ class Email2FACode {
     // Check if locked
     if (codeRecord.locked_until && new Date(codeRecord.locked_until) > new Date()) {
       return {
-        valid: false,
+        success: false,
         reason: 'locked',
         codeRecord,
         lockExpires: codeRecord.locked_until,
@@ -117,20 +117,20 @@ class Email2FACode {
 
     // Check if expired
     if (new Date(codeRecord.expires_at) < new Date()) {
-      return { valid: false, reason: 'expired', codeRecord };
+      return { success: false, reason: 'expired', codeRecord };
     }
 
     // Check if code matches
     if (codeRecord.code_hash !== codeHash) {
       // Increment attempts
       await this.incrementAttempts(codeRecord.id);
-      return { valid: false, reason: 'invalid_code', codeRecord };
+      return { success: false, reason: 'invalid_code', codeRecord };
     }
 
     // Code is valid - mark as used
     await this.markAsUsed(codeRecord.id);
 
-    return { valid: true, reason: 'success', codeRecord };
+    return { success: true, reason: 'success', codeRecord };
   }
 
   /**
@@ -213,14 +213,14 @@ class Email2FACode {
     const result = await db.query(query, [userId]);
 
     if (result.rows.length === 0) {
-      return { canResend: true, reason: 'no_active_code' };
+      return { allowed: true, reason: 'no_active_code' };
     }
 
     const codeRecord = result.rows[0];
 
     // Check rate limit
     if (codeRecord.resend_count >= rateLimit) {
-      return { canResend: false, reason: 'rate_limit_exceeded' };
+      return { allowed: false, reason: 'rate_limit_exceeded' };
     }
 
     // Check cooldown
@@ -231,11 +231,11 @@ class Email2FACode {
 
       if (now < cooldownExpires) {
         const waitSeconds = Math.ceil((cooldownExpires - now) / 1000);
-        return { canResend: false, reason: 'cooldown', waitSeconds };
+        return { allowed: false, reason: 'cooldown', waitSeconds };
       }
     }
 
-    return { canResend: true, reason: 'allowed' };
+    return { allowed: true, reason: 'allowed' };
   }
 
   /**
@@ -310,6 +310,68 @@ class Email2FACode {
 
     const result = await db.query(query, [olderThanHours]);
     return result.rowCount;
+  }
+  static async cleanup(olderThanHours = 24) {
+    const query = `
+      DELETE FROM email_2fa_codes
+      WHERE expires_at < NOW() - INTERVAL '1 hour' * $1
+      RETURNING id
+    `;
+
+    const result = await db.query(query, [olderThanHours]);
+    return result.rowCount;
+  }
+
+  // ============================================
+  // SERVICE COMPATIBILITY METHODS
+  // ============================================
+
+  static async canRequestCode(userId) {
+    const query = `
+      SELECT * FROM email_2fa_codes
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const result = await db.query(query, [userId]);
+    if (result.rows.length === 0) {
+      return { allowed: true };
+    }
+    const lastCode = result.rows[0];
+    const now = new Date();
+    const lastCreated = new Date(lastCode.created_at);
+    const minSecondsBetweenRequests = 30;
+    const secondsSinceLastRequest = (now - lastCreated) / 1000;
+    if (secondsSinceLastRequest < minSecondsBetweenRequests) {
+      return {
+        allowed: false,
+        reason: 'Please wait before requesting a new code',
+        retryAfter: Math.ceil(minSecondsBetweenRequests - secondsSinceLastRequest),
+      };
+    }
+    return { allowed: true };
+  }
+
+  static async checkLockout(userId) {
+    const query = `
+      SELECT locked_until FROM email_2fa_codes
+      WHERE user_id = $1 AND used = false AND locked_until > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    const result = await db.query(query, [userId]);
+    if (result.rows.length > 0 && result.rows[0].locked_until) {
+      return { isLocked: true, lockedUntil: result.rows[0].locked_until };
+    }
+    return { isLocked: false, lockedUntil: null };
+  }
+
+  static async invalidateExisting(userId) {
+    return this.invalidateUserCodes(userId);
+  }
+
+  static async trackResend(userId) {
+    return this.recordResend(userId);
   }
 }
 
