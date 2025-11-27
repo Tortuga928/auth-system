@@ -13,7 +13,7 @@ import adminApi from '../../services/adminApi';
 const UsersManagement = () => {
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20, totalPages: 1, total: 0 });
-  const [filters, setFilters] = useState({ role: '', status: '', search: '' });
+  const [filters, setFilters] = useState({ role: '', status: 'active', search: '' });
   const [sortConfig, setSortConfig] = useState({ sortBy: 'created_at', sortOrder: 'DESC' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,7 +34,7 @@ const UsersManagement = () => {
         ...sortConfig,
       };
 
-      const response = await adminApi.getUsers(params);
+      const response = await adminApi.getUsersWithArchive(params);
       const data = response.data.data;
 
       setUsers(data.users || []);
@@ -126,6 +126,34 @@ Email: ${user.email}`;
       alert(`User "${user.username}" has been reactivated successfully!`);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to reactivate user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleArchiveUser = async (user) => {
+    if (!window.confirm('Are you sure you want to archive this user?')) return;
+    try {
+      setActionLoading(true);
+      await adminApi.archiveUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been archived successfully!`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to archive user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestoreFromArchive = async (user) => {
+    if (!window.confirm('Are you sure you want to restore this user from archive?')) return;
+    try {
+      setActionLoading(true);
+      await adminApi.restoreUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been restored successfully!`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to restore user');
     } finally {
       setActionLoading(false);
     }
@@ -226,6 +254,8 @@ Email: ${user.email}`;
       admin: { backgroundColor: '#9b59b6', color: '#fff' },
       super_admin: { backgroundColor: '#e74c3c', color: '#fff' },
     },
+    archivedBadge: { backgroundColor: '#7f8c8d', color: '#fff' },
+    archivedRow: { backgroundColor: '#f8f8f8', opacity: 0.8 },
     statusBadge: {
       true: { backgroundColor: '#27ae60', color: '#fff' },
       false: { backgroundColor: '#95a5a6', color: '#fff' },
@@ -302,9 +332,10 @@ Email: ${user.email}`;
           value={filters.status}
           onChange={(e) => handleFilterChange('status', e.target.value)}
         >
-          <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+          <option value="">All</option>
         </select>
         <button
           style={{ ...styles.btn, ...styles.primaryBtn }}

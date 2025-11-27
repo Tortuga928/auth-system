@@ -719,3 +719,201 @@ exports.getSecurityOverview = async (req, res) => {
     });
   }
 };
+
+/**
+ * Get all users with archive status support
+ */
+exports.getUsersWithArchive = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      pageSize = 20,
+      role,
+      status = 'active',
+      search,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const options = {
+      page: parseInt(page, 10),
+      pageSize: parseInt(pageSize, 10),
+      role,
+      status,
+      search,
+      sortBy,
+      sortOrder,
+    };
+
+    const result = await User.findAllWithArchive(options);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Get users with archive error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve users',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Archive user
+ */
+exports.archiveUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prevent self-archiving
+    if (userId === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot archive your own account',
+      });
+    }
+
+    // Check if already archived
+    const fullUser = await User.findByIdWithDetails(userId);
+    if (fullUser.archived_at) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is already archived',
+      });
+    }
+
+    const archivedUser = await User.archive(userId);
+
+    if (!archivedUser) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to archive user',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User archived successfully',
+      data: { user: archivedUser },
+    });
+  } catch (error) {
+    console.error('Archive user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to archive user',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Restore user from archive
+ */
+exports.restoreUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const restoredUser = await User.restore(userId);
+
+    if (!restoredUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User is not archived or restore failed',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User restored from archive successfully',
+      data: { user: restoredUser },
+    });
+  } catch (error) {
+    console.error('Restore user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to restore user',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Anonymize user data (GDPR compliance)
+ * Only works on archived users, Super Admin only
+ */
+exports.anonymizeUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = parseInt(id, 10);
+
+    // Super Admin only check
+    if (req.user.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only super administrators can anonymize user data',
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Prevent self-anonymization
+    if (userId === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot anonymize your own account',
+      });
+    }
+
+    const anonymizedUser = await User.anonymize(userId);
+
+    if (!anonymizedUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User must be archived before anonymizing. Archive the user first.',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User data anonymized successfully for GDPR compliance',
+      data: { user: anonymizedUser },
+    });
+  } catch (error) {
+    console.error('Anonymize user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to anonymize user',
+      error: error.message,
+    });
+  }
+};
