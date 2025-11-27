@@ -24,6 +24,8 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
 import UserDetailPage from './pages/admin/UserDetailPage';
 import AuditLogs from './pages/admin/AuditLogs';
+// Phase 5: Admin MFA Settings
+import AdminMFASettings from './pages/admin/MFASettings';
 // Settings (Super Admin only)
 import SettingsHome from './pages/settings/SettingsHome';
 import EmailSettings from './pages/settings/EmailSettings';
@@ -126,6 +128,8 @@ function App() {
             <Route path="/admin/users" element={<UsersManagement />} />
             <Route path="/admin/users/:id" element={<UserDetailPage />} />
             <Route path="/admin/audit-logs" element={<AuditLogs />} />
+            {/* Phase 5: Admin MFA Settings */}
+            <Route path="/admin/mfa-settings" element={<AdminMFASettings />} />
             <Route path="/security-alerts" element={<SecurityAlertsPage />} />
             {/* Settings routes (Super Admin only) */}
             <Route path="/settings/home" element={<SettingsHome />} />

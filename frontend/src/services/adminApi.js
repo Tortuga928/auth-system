@@ -65,6 +65,29 @@ const adminApi = {
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
     return api.get(`/api/admin/audit-logs?${queryParams.toString()}`);
   },
+
+  // MFA Configuration (Phase 5)
+  getMFAConfig: () => api.get('/api/admin/mfa/config'),
+  updateMFAConfig: (data) => api.put('/api/admin/mfa/config', data),
+  resetMFAConfig: () => api.post('/api/admin/mfa/config/reset'),
+
+  // MFA Role Configs
+  getMFARoleConfigs: () => api.get('/api/admin/mfa/role-configs'),
+  getMFARoleConfig: (role) => api.get(`/api/admin/mfa/role-configs/${role}`),
+  updateMFARoleConfig: (role, data) => api.put(`/api/admin/mfa/role-configs/${role}`, data),
+
+  // MFA Email Templates
+  getMFATemplates: () => api.get('/api/admin/mfa/templates'),
+  getMFATemplate: (type) => api.get(`/api/admin/mfa/templates/${type}`),
+  updateMFATemplate: (type, data) => api.put(`/api/admin/mfa/templates/${type}`, data),
+  activateMFATemplate: (type) => api.post(`/api/admin/mfa/templates/${type}/activate`),
+  resetMFATemplate: (type) => api.post(`/api/admin/mfa/templates/${type}/reset`),
+
+  // MFA User Management
+  getMFAUsers: () => api.get('/api/admin/mfa/users'),
+  unlockMFAUser: (userId) => api.post(`/api/admin/mfa/users/${userId}/unlock`),
+  forceUserMFATransition: (userId, method) => api.post(`/api/admin/mfa/users/${userId}/force-transition`, { method }),
+  applySystemMFAChange: (options) => api.post('/api/admin/mfa/apply-method-change', options),
 };
 
 export default adminApi;

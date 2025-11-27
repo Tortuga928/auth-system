@@ -35,6 +35,7 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
   const baseMenuItems = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/admin/users', label: 'Users', icon: '👥' },
+    { path: '/admin/mfa-settings', label: 'MFA Settings', icon: '🔐' },
     { path: '/admin/audit-logs', label: 'Audit Logs', icon: '📋' },
   ];
 
