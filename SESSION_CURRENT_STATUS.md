@@ -1,171 +1,250 @@
-# Current Session Status - November 26, 2025
+# Current Session Status - November 27, 2025
 
-**Last Updated**: November 26, 2025 - Session 8 Complete
-**Working On**: Archive User Feature COMPLETE
-**Status**: **Ready for beta testing** ✅
-
----
-
-## 🎯 Session 8 Progress - Archive User Feature
-
-### Feature: Archive User (Replace Delete with Archive/Restore/Anonymize)
-
-**Achievement**: Complete archive user system - 22/22 tests passed (100%)
-
-### What Was Built
-
-#### Problem Solved
-- "Delete User" button was confusing (soft delete only deactivated users)
-- No way to hide accounts admin doesn't want to see anymore
-- No GDPR-compliant data anonymization option
-
-#### Solution Implemented
-1. **Archive User** (📦 gray button) - Hides user from default list
-2. **Restore User** (↩️ green button) - Brings archived user back
-3. **Anonymize Data** (🗑️ red button) - GDPR-compliant data scrambling (Super Admin only)
-4. **Status Filter Dropdown** - Active/Inactive/Archived/All
-
-### Files Modified
-
-#### Backend
-- `backend/src/db/migrations/20251126000004_add_archive_columns_to_users.js` - NEW
-  - Added `archived_at` and `anonymized_at` columns to users table
-- `backend/src/models/User.js` - MODIFIED
-  - Added `archive()`, `restore()`, `anonymize()`, `findAllWithArchive()` methods
-  - Updated `findByIdWithDetails()` to include archived_at, anonymized_at
-- `backend/src/controllers/adminController.js` - MODIFIED
-  - Added `getUsersWithArchive`, `archiveUser`, `restoreUser`, `anonymizeUser` controllers
-- `backend/src/routes/admin.js` - MODIFIED
-  - Added routes: `/users-v2`, `/users/:id/archive`, `/users/:id/restore`, `/users/:id/anonymize`
-- `backend/src/models/AuditLog.js` - MODIFIED
-  - Added action types: USER_ARCHIVE, USER_RESTORE, USER_ANONYMIZE
-
-#### Frontend
-- `frontend/src/services/adminApi.js` - MODIFIED
-  - Added: `getUsersWithArchive()`, `archiveUser()`, `restoreUser()`, `anonymizeUser()`
-- `frontend/src/pages/admin/UsersManagement.jsx` - MODIFIED
-  - Default filter: Active users only
-  - Status dropdown: Active/Inactive/Archived/All
-  - Archive button (📦) for non-archived users
-  - Restore button (↩️) for archived users
-  - Grayed out rows + ARCHIVED badge for archived users
-- `frontend/src/pages/admin/UserDetailPage.jsx` - MODIFIED
-  - Replaced Delete button with Archive button
-  - Added Restore button for archived users
-  - Added Anonymize button for Super Admin on archived users
-  - Added status banners for archived/anonymized users
-  - Type-to-confirm modal for anonymize ("ANONYMIZE")
-
-### API Endpoints Added
-
-```
-GET    /api/admin/users-v2                    - List users with archive filter (status=active|inactive|archived)
-POST   /api/admin/users/:id/archive           - Archive a user
-POST   /api/admin/users/:id/restore           - Restore an archived user
-POST   /api/admin/users/:id/anonymize         - Anonymize user data (Super Admin only)
-```
-
-### Test Results
-
-```
-============================================================
-📊 FINAL TEST REPORT
-============================================================
-
-✅ PASSED: 22/22 (100%)
-
-Tests Covered:
-- Authentication (admin + super admin login)
-- GET /api/admin/users-v2 endpoint
-- Filter by status (active, inactive, archived, all)
-- Archive user API
-- Restore user API
-- Anonymize requires archived user
-- Regular admin cannot anonymize (403)
-- Audit log integration
-- Edge cases (non-existent user, double archive)
-============================================================
-```
-
-### Git Status
-
-**Current Branch**: `staging`
-
-**Commits on staging**:
-```
-cbf1be6 feat(admin): complete archive user UI and fix archived_at field
-289fbad feat(admin): implement user archive, restore, and anonymize feature
-fa84058 docs: update session status for Email Service Configuration feature
-6686766 feat(settings): add comprehensive email settings UI
-```
+**Last Updated**: November 27, 2025 - Email 2FA Enhancement Phase 3 Complete
+**Working On**: Email 2FA Enhancement Feature
+**Current Branch**: `feature/email-2fa-phase-1`
+**Status**: **Phase 3 Complete - Ready for Phase 4**
 
 ---
 
-## 📋 Previous Work This Session
+## Email 2FA Enhancement Project
 
-### Email Service Configuration Feature (5/6 phases complete)
-- ✅ Phase 1: Database Schema & Backend Foundation
-- ✅ Phase 2: Email Service Backend API
-- ✅ Phase 3: Email Verification Enforcement Logic
-- ✅ Phase 4: Settings UI - Structure & Navigation
-- ✅ Phase 5: Email Settings UI
-- ⏳ Phase 6: Integration Testing & Documentation (PENDING)
+### Overview
+Adding email-based 2FA as an alternative/complement to existing TOTP MFA. This is a comprehensive 6-phase, ~40 commit project.
+
+### Three MFA Modes Supported
+1. **Primary (Email Only)** - Email 2FA is the only MFA method
+2. **Secondary Required (TOTP + Email)** - Both methods required
+3. **Secondary Fallback** - TOTP primary, Email as backup
 
 ---
 
-## 🚀 Next Steps
+## Phase Progress
 
-### Immediate
-1. Merge staging → beta for testing
-2. Test archive feature in beta environment
-3. Complete Email Service Configuration Phase 6 (integration testing)
+### Phase 1: Database Schema & Backend Foundation (COMPLETE - 7 commits)
+- 6 database migrations created
+- 6 model files created
+- All migrations run successfully
 
-### To Continue This Work
+**Migrations Created**:
+- `20251127000001_create_mfa_config_table.js` - System-wide MFA config (22+ fields)
+- `20251127000002_create_mfa_role_config_table.js` - Per-role MFA requirements
+- `20251127000003_create_email_2fa_codes_table.js` - Temporary verification codes
+- `20251127000004_create_trusted_devices_table.js` - Device trust for MFA bypass
+- `20251127000005_create_user_mfa_preferences_table.js` - User MFA settings
+- `20251127000006_create_mfa_email_templates_table.js` - Email templates
+
+**Models Created**:
+- `MFAConfig.js` - Singleton pattern for system config
+- `MFARoleConfig.js` - Per-role configuration
+- `Email2FACode.js` - Code generation, hashing, verification
+- `TrustedDevice.js` - Device fingerprinting
+- `UserMFAPreferences.js` - User preferences
+- `MFAEmailTemplate.js` - Template CRUD and rendering
+
+### Phase 2: MFA Configuration Admin API (COMPLETE - 3 commits)
+- Admin controller for MFA configuration
+- Routes registered in app.js
+- Audit log action types added
+- Admin API tests created
+
+**Files Created/Modified**:
+- `backend/src/controllers/mfaAdminController.js` (575 lines)
+- `backend/src/routes/mfaAdmin.js` (173 lines)
+- `backend/src/models/AuditLog.js` - Added 15 MFA action types
+- `backend/tests/mfaAdmin.test.js` (448 lines)
+
+**MFA Action Types Added to AuditLog**:
+```javascript
+// Admin Actions
+MFA_CONFIG_UPDATE, MFA_CONFIG_RESET, MFA_ROLE_CONFIG_UPDATE,
+MFA_EMAIL_TEMPLATE_UPDATE, MFA_EMAIL_TEMPLATE_ACTIVATE, MFA_EMAIL_TEMPLATE_RESET,
+MFA_APPLY_METHOD_CHANGE, MFA_FORCE_TRANSITION, MFA_UNLOCK_USER,
+// User Actions
+MFA_CODE_SENT, MFA_CODE_VERIFIED, MFA_CODE_FAILED, MFA_LOCKOUT, MFA_METHOD_CHANGED
+```
+
+### Phase 3: Email 2FA Core Backend Logic (COMPLETE - 6 commits)
+- Email 2FA service with code generation, verification, rate limiting
+- MFA email sender service with templates
+- Email 2FA controller for user-facing endpoints
+- Routes registered in app.js
+- Email2FACode model enhanced with service compatibility methods
+- Unit tests created
+
+**Files Created/Modified**:
+- `backend/src/services/email2FAService.js` (529 lines)
+- `backend/src/services/mfaEmailSender.js` (523 lines)
+- `backend/src/controllers/email2FAController.js` (560 lines)
+- `backend/src/routes/email2fa.js` (122 lines)
+- `backend/src/app.js` - Routes registered
+- `backend/src/models/Email2FACode.js` - Added service compatibility methods
+- `backend/tests/email2fa.test.js` (379 lines)
+
+**Service Compatibility Methods Added to Email2FACode**:
+```javascript
+static async canRequestCode(userId) { /* rate limiting check */ }
+static async checkLockout(userId) { /* lockout status check */ }
+static async invalidateExisting(userId) { return this.invalidateUserCodes(userId); }
+static async trackResend(userId) { return this.recordResend(userId); }
+```
+
+### Phase 4: Login Flow Integration (PENDING - 7 commits planned)
+- Modify authentication controller for MFA mode handling
+- Add MFA check middleware
+- Implement trusted device handling
+- Add login flow tests
+
+### Phase 5: Admin Settings UI (PENDING - 9 commits planned)
+- Admin MFA configuration page
+- Role-specific settings
+- Email template editor
+- Preview functionality
+
+### Phase 6: User MFA Setup Wizard & Login UI (PENDING - 10 commits planned)
+- User MFA preferences page
+- 2FA code entry during login
+- Setup wizard
+- Trusted device management
+
+---
+
+## Git Status
+
+**Branch**: `feature/email-2fa-phase-1`
+**Total Commits**: 16
+
+```
+# Recent commits (newest first)
+28bfa79 test(mfa): add Email 2FA unit tests (Phase 3, Commit 3.6)
+62c6fbd feat(mfa): enhance Email2FACode model for service layer (Phase 3, Commit 3.5)
+18f9593 feat(mfa): add Email 2FA routes (Phase 3, Commit 3.4)
+bdd439d feat(mfa): add Email 2FA controller (Phase 3, Commit 3.3)
+179b7e5 feat(mfa): add MFA email sender service (Phase 3, Commit 3.2)
+7873f32 feat(mfa): add Email 2FA service (Phase 3, Commit 3.1)
+05b924a test(mfa): add MFA admin API tests (Phase 2, Commit 2.6)
+855173a feat(mfa): add MFA action types to AuditLog (Phase 2, Commit 2.5)
+3ff01cd feat(mfa): add MFA admin API endpoints (Phase 2, Commits 2.1-2.4)
+6f4c4e1 feat(mfa): add backend models for Email 2FA (Phase 1, Commit 1.7)
+# ... 6 more Phase 1 commits
+```
+
+---
+
+## To Continue This Work
+
+### Resume Development
 ```bash
 # Navigate to project
 cd /c/Users/MSTor/Projects/auth-system
 
-# Check current branch (should be staging)
+# Check current branch (should be feature/email-2fa-phase-1)
 git status
-git log --oneline -5
+git branch
+
+# View recent commits
+git log --oneline -10
 
 # Start Docker containers
 docker-compose up -d
 
-# Test the archive feature
-# Login as admin at http://localhost:3000
-# Navigate to Admin Panel > Users
-# Test Archive/Restore/Anonymize functionality
+# Verify backend is running
+curl http://localhost:5000/health
+```
+
+### Start Phase 4
+When ready to continue, Phase 4 involves:
+1. Modify `authController.js` to check MFA requirements during login
+2. Create MFA check middleware
+3. Implement trusted device handling
+4. Add login flow integration tests
+
+---
+
+## API Endpoints Added (Phases 1-3)
+
+### Admin MFA Configuration (`/api/admin/mfa/*`)
+```
+GET    /api/admin/mfa/config                    - Get global MFA configuration
+PUT    /api/admin/mfa/config                    - Update MFA configuration
+POST   /api/admin/mfa/config/reset              - Reset to defaults
+GET    /api/admin/mfa/role-configs              - Get all role configs
+GET    /api/admin/mfa/role-configs/:role        - Get specific role config
+PUT    /api/admin/mfa/role-configs/:role        - Update role config
+GET    /api/admin/mfa/templates                 - List email templates
+GET    /api/admin/mfa/templates/:type           - Get specific template
+PUT    /api/admin/mfa/templates/:type           - Update template
+POST   /api/admin/mfa/templates/:type/activate  - Activate template
+POST   /api/admin/mfa/templates/:type/reset     - Reset to default
+GET    /api/admin/mfa/users                     - List users with MFA status
+POST   /api/admin/mfa/users/:id/unlock          - Unlock user
+POST   /api/admin/mfa/users/:id/force-transition- Force MFA method change
+POST   /api/admin/mfa/apply-method-change       - Apply system-wide method change
+```
+
+### User Email 2FA (`/api/auth/mfa/*`)
+```
+GET    /api/auth/mfa/config                     - Get public MFA configuration
+POST   /api/auth/mfa/email/request              - Request verification code
+POST   /api/auth/mfa/email/verify               - Verify code
+POST   /api/auth/mfa/email/resend               - Resend code
+GET    /api/auth/mfa/status                     - Get user's MFA status (auth required)
+POST   /api/auth/mfa/email/enable               - Enable email 2FA (auth required)
+POST   /api/auth/mfa/email/disable              - Disable email 2FA (auth required)
+POST   /api/auth/mfa/email/alternate            - Set alternate email (auth required)
+POST   /api/auth/mfa/email/alternate/verify     - Verify alternate email (auth required)
+DELETE /api/auth/mfa/email/alternate            - Remove alternate email (auth required)
 ```
 
 ---
 
-## 🔑 Test Credentials
+## Known Issues Resolved
 
-**Admin** (for Archive/Restore):
-- Email: `archive_test_admin@test.com`
-- Password: `ArchiveTest123!`
+### File Modification Error During Phase 3
+**Issue**: Edit tool repeatedly reported "File has been unexpectedly modified" when editing `Email2FACode.js`
+**Solution**:
+1. Stop Docker containers: `docker-compose stop`
+2. Use Bash heredoc/sed commands instead of Edit tool
+3. Restart containers after: `docker-compose start`
 
-**Super Admin** (for Anonymize):
-- Email: `archive_test_superadmin@test.com`
-- Password: `ArchiveTest123!`
+---
+
+## Test Credentials
 
 **Original Test Users**:
 - Super Admin: `testsuperadmin@example.com` / `SuperAdmin123!@#`
 - Admin: `testadmin@example.com` / `TestAdmin123!`
+- User: `testuser@test.com` (for 2FA testing)
 
 ---
 
-## 📊 Overall Project Progress
+## Overall Project Progress
 
 **Phase 11**: Testing & Documentation - COMPLETE (6/6 stories)
 **Project Progress**: 83% complete (54/65 stories)
 
-**Features Added This Session**:
-1. Email Service Configuration (5/6 phases)
-2. Archive User Feature (COMPLETE - 22/22 tests)
+**Active Feature**: Email 2FA Enhancement - Phase 3/6 Complete (50%)
 
 ---
 
-*Last Updated: November 26, 2025*
-*Status: Session 8 Complete - Archive User Feature 100% Complete*
+## Previous Work (Session 8)
+
+### Archive User Feature (COMPLETE)
+- Replaced Delete User with Archive User
+- Added Restore User functionality
+- Added Anonymize Data (GDPR) for Super Admin
+- Filter dropdown: Active/Inactive/Archived/All
+- 22/22 tests passed
+
+### Email Service Configuration Feature (5/6 phases)
+- Phase 1: Database Schema & Backend Foundation
+- Phase 2: Email Service Backend API
+- Phase 3: Email Verification Enforcement Logic
+- Phase 4: Settings UI - Structure & Navigation
+- Phase 5: Email Settings UI
+- Phase 6: Integration Testing & Documentation (PENDING)
+
+---
+
+*Last Updated: November 27, 2025*
+*Status: Email 2FA Enhancement - Phases 1-3 Complete, Phase 4 Next*
