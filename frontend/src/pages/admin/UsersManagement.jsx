@@ -131,6 +131,34 @@ Email: ${user.email}`;
     }
   };
 
+  const handleArchiveUser = async (user) => {
+    if (!window.confirm('Are you sure you want to archive this user?')) return;
+    try {
+      setActionLoading(true);
+      await adminApi.archiveUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been archived successfully!`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to archive user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestoreFromArchive = async (user) => {
+    if (!window.confirm('Are you sure you want to restore this user from archive?')) return;
+    try {
+      setActionLoading(true);
+      await adminApi.restoreUser(user.id);
+      await fetchUsers();
+      alert(`User "${user.username}" has been restored successfully!`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to restore user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleEditClick = (user) => {
     setSelectedUser(user);
     setShowEditModal(true);
@@ -226,6 +254,8 @@ Email: ${user.email}`;
       admin: { backgroundColor: '#9b59b6', color: '#fff' },
       super_admin: { backgroundColor: '#e74c3c', color: '#fff' },
     },
+    archivedBadge: { backgroundColor: '#7f8c8d', color: '#fff' },
+    archivedRow: { backgroundColor: '#f8f8f8', opacity: 0.8 },
     statusBadge: {
       true: { backgroundColor: '#27ae60', color: '#fff' },
       false: { backgroundColor: '#95a5a6', color: '#fff' },
@@ -302,9 +332,10 @@ Email: ${user.email}`;
           value={filters.status}
           onChange={(e) => handleFilterChange('status', e.target.value)}
         >
-          <option value="">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="archived">Archived</option>
+          <option value="">All</option>
         </select>
         <button
           style={{ ...styles.btn, ...styles.primaryBtn }}

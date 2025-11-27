@@ -427,6 +427,7 @@ class User {
         u.id, u.username, u.email, u.first_name, u.last_name,
         u.role, u.email_verified, u.is_active, u.avatar_url,
         u.last_login_at, u.created_at, u.updated_at,
+        u.archived_at, u.anonymized_at,
         EXISTS(SELECT 1 FROM mfa_secrets WHERE user_id = u.id AND enabled = true) as mfa_enabled,
         (SELECT COUNT(*) FROM oauth_accounts WHERE user_id = u.id) as oauth_accounts_count,
         (SELECT COUNT(*) FROM sessions WHERE user_id = u.id AND is_active = true) as active_sessions_count
