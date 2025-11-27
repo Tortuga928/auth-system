@@ -1,9 +1,10 @@
 /**
  * MFA Settings Page
  * Main UI for managing Multi-Factor Authentication settings
+ * Updated with Email 2FA support (Phase 6)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useMFA from '../hooks/useMFA';
 import BackupCodesDisplay from '../components/BackupCodesDisplay';
 import MFASetupWizard from '../components/MFASetupWizard';
@@ -17,6 +18,20 @@ const MFASettingsPage = () => {
     refreshStatus,
     disableMFA,
     regenerateBackupCodes,
+    // Email 2FA (Phase 6)
+    email2FAEnabled,
+    totpEnabled,
+    alternateEmail,
+    preferredMethod,
+    enableEmail2FA,
+    disableEmail2FA,
+    setAlternateEmail,
+    verifyAlternateEmail,
+    removeAlternateEmail,
+    getTrustedDevices,
+    removeTrustedDevice,
+    removeAllTrustedDevices,
+    updatePreferences,
   } = useMFA();
 
   const [showBackupCodes, setShowBackupCodes] = useState(false);
@@ -31,6 +46,17 @@ const MFASettingsPage = () => {
   const [disablePassword, setDisablePassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [confirmStep, setConfirmStep] = useState(false);
+
+  // Email 2FA state (Phase 6)
+  const [activeTab, setActiveTab] = useState('totp'); // 'totp', 'email', 'devices'
+  const [trustedDevices, setTrustedDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [showAlternateEmailForm, setShowAlternateEmailForm] = useState(false);
+  const [newAlternateEmail, setNewAlternateEmail] = useState('');
+  const [alternateEmailCode, setAlternateEmailCode] = useState('');
+  const [pendingAlternateEmail, setPendingAlternateEmail] = useState(null);
+  const [showEmail2FADisableForm, setShowEmail2FADisableForm] = useState(false);
+  const [email2FADisablePassword, setEmail2FADisablePassword] = useState('');
 
 
   /**
@@ -162,6 +188,219 @@ const MFASettingsPage = () => {
     setBackupCodes([]);
   };
 
+  // ==========================================
+  // Email 2FA Handlers (Phase 6)
+  // ==========================================
+
+  /**
+   * Load trusted devices
+   */
+  const loadTrustedDevices = async () => {
+    setDevicesLoading(true);
+    const result = await getTrustedDevices();
+    if (result.success) {
+      setTrustedDevices(result.data.devices || []);
+    }
+    setDevicesLoading(false);
+  };
+
+  // Load devices when switching to devices tab
+  useEffect(() => {
+    if (activeTab === 'devices') {
+      loadTrustedDevices();
+    }
+  }, [activeTab]);
+
+  /**
+   * Handle enabling Email 2FA
+   */
+  const handleEnableEmail2FA = async () => {
+    setActionLoading(true);
+    setActionError('');
+    setActionSuccess('');
+
+    const result = await enableEmail2FA();
+
+    if (result.success) {
+      setActionSuccess('Email 2FA has been enabled successfully!');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle disabling Email 2FA
+   */
+  const handleDisableEmail2FA = async () => {
+    if (!email2FADisablePassword) {
+      setActionError('Please enter your password');
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+    setActionSuccess('');
+
+    const result = await disableEmail2FA(email2FADisablePassword);
+
+    if (result.success) {
+      setActionSuccess('Email 2FA has been disabled');
+      setShowEmail2FADisableForm(false);
+      setEmail2FADisablePassword('');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle setting alternate email
+   */
+  const handleSetAlternateEmail = async (e) => {
+    e.preventDefault();
+    if (!newAlternateEmail) {
+      setActionError('Please enter an email address');
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await setAlternateEmail(newAlternateEmail);
+
+    if (result.success) {
+      setPendingAlternateEmail(newAlternateEmail);
+      setActionSuccess('Verification code sent to ' + newAlternateEmail);
+      setTimeout(() => setActionSuccess(''), 5000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle verifying alternate email code
+   */
+  const handleVerifyAlternateEmail = async (e) => {
+    e.preventDefault();
+    if (!alternateEmailCode) {
+      setActionError('Please enter the verification code');
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await verifyAlternateEmail(alternateEmailCode);
+
+    if (result.success) {
+      setActionSuccess('Alternate email verified successfully!');
+      setShowAlternateEmailForm(false);
+      setNewAlternateEmail('');
+      setAlternateEmailCode('');
+      setPendingAlternateEmail(null);
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle removing alternate email
+   */
+  const handleRemoveAlternateEmail = async () => {
+    // eslint-disable-next-line no-restricted-globals
+    if (!confirm('Are you sure you want to remove your alternate email?')) {
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await removeAlternateEmail();
+
+    if (result.success) {
+      setActionSuccess('Alternate email removed');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle removing a trusted device
+   */
+  const handleRemoveTrustedDevice = async (deviceId) => {
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await removeTrustedDevice(deviceId);
+
+    if (result.success) {
+      setTrustedDevices(devices => devices.filter(d => d.id !== deviceId));
+      setActionSuccess('Device removed');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle removing all trusted devices
+   */
+  const handleRemoveAllTrustedDevices = async () => {
+    // eslint-disable-next-line no-restricted-globals
+    if (!confirm('Are you sure you want to remove all trusted devices? You will need to verify MFA on next login from any device.')) {
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await removeAllTrustedDevices();
+
+    if (result.success) {
+      setTrustedDevices([]);
+      setActionSuccess('All trusted devices removed');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
+  /**
+   * Handle updating preferred MFA method
+   */
+  const handleUpdatePreferredMethod = async (method) => {
+    setActionLoading(true);
+    setActionError('');
+
+    const result = await updatePreferences({ preferredMethod: method });
+
+    if (result.success) {
+      setActionSuccess('Preferred method updated');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } else {
+      setActionError(result.error);
+    }
+
+    setActionLoading(false);
+  };
+
   if (loading) {
     return (
       <div className="mfa-settings-page">
@@ -200,10 +439,34 @@ const MFASettingsPage = () => {
           </div>
         )}
 
+        {/* Tab Navigation (Phase 6) */}
+        <div className="tab-navigation">
+          <button
+            className={`tab-button ${activeTab === 'totp' ? 'active' : ''}`}
+            onClick={() => setActiveTab('totp')}
+          >
+            🔑 Authenticator App
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'email' ? 'active' : ''}`}
+            onClick={() => setActiveTab('email')}
+          >
+            📧 Email 2FA
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'devices' ? 'active' : ''}`}
+            onClick={() => setActiveTab('devices')}
+          >
+            💻 Trusted Devices
+          </button>
+        </div>
+
+        {/* TOTP Tab */}
+        {activeTab === 'totp' && (
         <div className="settings-card">
           <div className="card-header">
             <div className="status-section">
-              <h2>Status</h2>
+              <h2>Authenticator App (TOTP)</h2>
               <div className={`status-badge ${mfaEnabled ? 'enabled' : 'disabled'}`}>
                 {mfaEnabled ? (
                   <>
@@ -371,6 +634,328 @@ const MFASettingsPage = () => {
             )}
           </div>
         </div>
+        )}
+
+        {/* Email 2FA Tab (Phase 6) */}
+        {activeTab === 'email' && (
+        <div className="settings-card">
+          <div className="card-header">
+            <div className="status-section">
+              <h2>Email 2FA</h2>
+              <div className={`status-badge ${email2FAEnabled ? 'enabled' : 'disabled'}`}>
+                {email2FAEnabled ? (
+                  <>
+                    <span className="status-icon">✓</span>
+                    <span>Enabled</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="status-icon">○</span>
+                    <span>Disabled</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="card-body">
+            {!email2FAEnabled ? (
+              <>
+                <div className="info-box">
+                  <h3>Why enable Email 2FA?</h3>
+                  <ul>
+                    <li>Receive verification codes via email</li>
+                    <li>No authenticator app required</li>
+                    <li>Use as primary or backup method</li>
+                    <li>Set up an alternate email for recovery</li>
+                  </ul>
+                </div>
+
+                <button
+                  className="btn btn-primary btn-large"
+                  onClick={handleEnableEmail2FA}
+                  disabled={actionLoading}
+                >
+                  📧 Enable Email 2FA
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="info-box success">
+                  <h3>✓ Email 2FA is enabled</h3>
+                  <p>
+                    You can receive verification codes at your registered email address.
+                  </p>
+                  {alternateEmail && (
+                    <p><strong>Alternate email:</strong> {alternateEmail}</p>
+                  )}
+                </div>
+
+                {/* Alternate Email Section */}
+                <div className="alternate-email-section">
+                  <h4>Alternate Email Address</h4>
+                  <p className="section-description">
+                    Set up an alternate email to receive 2FA codes if you lose access to your primary email.
+                  </p>
+
+                  {alternateEmail && !showAlternateEmailForm ? (
+                    <div className="alternate-email-display">
+                      <span>{alternateEmail}</span>
+                      <div className="alternate-email-actions">
+                        <button
+                          className="btn btn-secondary btn-small"
+                          onClick={() => setShowAlternateEmailForm(true)}
+                          disabled={actionLoading}
+                        >
+                          Change
+                        </button>
+                        <button
+                          className="btn btn-danger btn-small"
+                          onClick={handleRemoveAlternateEmail}
+                          disabled={actionLoading}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : !showAlternateEmailForm ? (
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setShowAlternateEmailForm(true)}
+                      disabled={actionLoading}
+                    >
+                      + Add Alternate Email
+                    </button>
+                  ) : null}
+
+                  {showAlternateEmailForm && (
+                    <div className="alternate-email-form">
+                      {!pendingAlternateEmail ? (
+                        <form onSubmit={handleSetAlternateEmail}>
+                          <input
+                            type="email"
+                            value={newAlternateEmail}
+                            onChange={(e) => setNewAlternateEmail(e.target.value)}
+                            placeholder="Enter alternate email address"
+                            className="form-input"
+                            disabled={actionLoading}
+                          />
+                          <div className="form-buttons">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setShowAlternateEmailForm(false);
+                                setNewAlternateEmail('');
+                              }}
+                              disabled={actionLoading}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                              disabled={actionLoading || !newAlternateEmail}
+                            >
+                              {actionLoading ? 'Sending...' : 'Send Verification Code'}
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleVerifyAlternateEmail}>
+                          <p>Enter the verification code sent to {pendingAlternateEmail}</p>
+                          <input
+                            type="text"
+                            value={alternateEmailCode}
+                            onChange={(e) => setAlternateEmailCode(e.target.value)}
+                            placeholder="Enter 6-digit code"
+                            className="form-input"
+                            maxLength={6}
+                            disabled={actionLoading}
+                          />
+                          <div className="form-buttons">
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setShowAlternateEmailForm(false);
+                                setNewAlternateEmail('');
+                                setAlternateEmailCode('');
+                                setPendingAlternateEmail(null);
+                              }}
+                              disabled={actionLoading}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                              disabled={actionLoading || !alternateEmailCode}
+                            >
+                              {actionLoading ? 'Verifying...' : 'Verify'}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid #e5e7eb' }} />
+
+                {/* Disable Email 2FA */}
+                {!showEmail2FADisableForm ? (
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => setShowEmail2FADisableForm(true)}
+                    disabled={actionLoading}
+                  >
+                    🔓 Disable Email 2FA
+                  </button>
+                ) : (
+                  <div className="disable-form-container">
+                    <h4>Enter your password to disable Email 2FA</h4>
+                    <input
+                      type="password"
+                      value={email2FADisablePassword}
+                      onChange={(e) => setEmail2FADisablePassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="form-input"
+                      disabled={actionLoading}
+                    />
+                    <div className="form-buttons">
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setShowEmail2FADisableForm(false);
+                          setEmail2FADisablePassword('');
+                        }}
+                        disabled={actionLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={handleDisableEmail2FA}
+                        disabled={actionLoading || !email2FADisablePassword}
+                      >
+                        {actionLoading ? 'Disabling...' : 'Disable Email 2FA'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* Trusted Devices Tab (Phase 6) */}
+        {activeTab === 'devices' && (
+        <div className="settings-card">
+          <div className="card-header">
+            <div className="status-section">
+              <h2>Trusted Devices</h2>
+              <span className="device-count">
+                {trustedDevices.length} device{trustedDevices.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className="card-body">
+            <div className="info-box">
+              <p>
+                Trusted devices can skip 2FA verification for a limited time.
+                Remove a device if you no longer use it or suspect unauthorized access.
+              </p>
+            </div>
+
+            {devicesLoading ? (
+              <div className="loading">Loading devices...</div>
+            ) : trustedDevices.length === 0 ? (
+              <div className="empty-state">
+                <p>No trusted devices found.</p>
+                <p className="empty-state-hint">
+                  When you log in and check "Trust this device", it will appear here.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="devices-list">
+                  {trustedDevices.map((device) => (
+                    <div key={device.id} className="device-item">
+                      <div className="device-info">
+                        <div className="device-name">
+                          {device.device_name || 'Unknown Device'}
+                        </div>
+                        <div className="device-details">
+                          {device.browser && <span>{device.browser}</span>}
+                          {device.os && <span> on {device.os}</span>}
+                        </div>
+                        <div className="device-meta">
+                          <span>Trusted on: {new Date(device.trusted_at).toLocaleDateString()}</span>
+                          {device.expires_at && (
+                            <span> • Expires: {new Date(device.expires_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className="btn btn-danger btn-small"
+                        onClick={() => handleRemoveTrustedDevice(device.id)}
+                        disabled={actionLoading}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: '24px' }}>
+                  <button
+                    className="btn btn-danger"
+                    onClick={handleRemoveAllTrustedDevices}
+                    disabled={actionLoading || trustedDevices.length === 0}
+                  >
+                    Remove All Trusted Devices
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* Preferred Method Section (Phase 6) - Show when both methods are enabled */}
+        {(mfaEnabled && email2FAEnabled) && (
+        <div className="settings-card">
+          <div className="card-header">
+            <h2>Preferred Method</h2>
+          </div>
+          <div className="card-body">
+            <p className="section-description">
+              Choose which 2FA method to use by default during login.
+            </p>
+            <div className="method-selector">
+              <button
+                className={`method-button ${preferredMethod === 'totp' ? 'active' : ''}`}
+                onClick={() => handleUpdatePreferredMethod('totp')}
+                disabled={actionLoading}
+              >
+                🔑 Authenticator App
+              </button>
+              <button
+                className={`method-button ${preferredMethod === 'email' ? 'active' : ''}`}
+                onClick={() => handleUpdatePreferredMethod('email')}
+                disabled={actionLoading}
+              >
+                📧 Email Code
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
 
         <div className="help-section">
           <h3>Need Help?</h3>
@@ -769,6 +1354,189 @@ const MFASettingsPage = () => {
         details li {
           margin: 4px 0;
           color: #374151;
+        }
+
+        /* Tab Navigation (Phase 6) */
+        .tab-navigation {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 24px;
+          border-bottom: 2px solid #e5e7eb;
+          padding-bottom: 0;
+        }
+
+        .tab-button {
+          padding: 12px 24px;
+          border: none;
+          background: none;
+          font-size: 14px;
+          font-weight: 600;
+          color: #6b7280;
+          cursor: pointer;
+          border-bottom: 2px solid transparent;
+          margin-bottom: -2px;
+          transition: all 0.2s;
+        }
+
+        .tab-button:hover {
+          color: #3b82f6;
+        }
+
+        .tab-button.active {
+          color: #3b82f6;
+          border-bottom-color: #3b82f6;
+        }
+
+        /* Form Input */
+        .form-input {
+          width: 100%;
+          padding: 12px 16px;
+          font-size: 16px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          margin-bottom: 16px;
+          box-sizing: border-box;
+        }
+
+        .form-input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Section Description */
+        .section-description {
+          color: #6b7280;
+          font-size: 14px;
+          margin-bottom: 16px;
+        }
+
+        /* Alternate Email Section */
+        .alternate-email-section {
+          margin-top: 24px;
+        }
+
+        .alternate-email-section h4 {
+          margin: 0 0 8px 0;
+          font-size: 16px;
+          color: #111827;
+        }
+
+        .alternate-email-display {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+        }
+
+        .alternate-email-actions {
+          display: flex;
+          gap: 8px;
+        }
+
+        .alternate-email-form {
+          margin-top: 16px;
+          padding: 16px;
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+        }
+
+        /* Small Button */
+        .btn-small {
+          padding: 6px 12px;
+          font-size: 13px;
+        }
+
+        /* Devices List */
+        .device-count {
+          font-size: 14px;
+          color: #6b7280;
+          background-color: #f3f4f6;
+          padding: 4px 12px;
+          border-radius: 20px;
+        }
+
+        .devices-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .device-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px;
+          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+        }
+
+        .device-info {
+          flex: 1;
+        }
+
+        .device-name {
+          font-weight: 600;
+          color: #111827;
+          margin-bottom: 4px;
+        }
+
+        .device-details {
+          font-size: 14px;
+          color: #6b7280;
+        }
+
+        .device-meta {
+          font-size: 12px;
+          color: #9ca3af;
+          margin-top: 4px;
+        }
+
+        /* Empty State */
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: #6b7280;
+        }
+
+        .empty-state-hint {
+          font-size: 14px;
+          color: #9ca3af;
+          margin-top: 8px;
+        }
+
+        /* Method Selector */
+        .method-selector {
+          display: flex;
+          gap: 12px;
+        }
+
+        .method-button {
+          flex: 1;
+          padding: 16px 24px;
+          border: 2px solid #e5e7eb;
+          background-color: #fff;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          color: #374151;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .method-button:hover {
+          border-color: #3b82f6;
+        }
+
+        .method-button.active {
+          border-color: #3b82f6;
+          background-color: #eff6ff;
+          color: #3b82f6;
         }
       `}</style>
     </div>
