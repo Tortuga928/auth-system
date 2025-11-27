@@ -1,9 +1,9 @@
 # Current Session Status - November 27, 2025
 
-**Last Updated**: November 27, 2025 - Email 2FA Enhancement Phase 3 Complete
+**Last Updated**: November 27, 2025 - Email 2FA Enhancement Phase 4 Complete
 **Working On**: Email 2FA Enhancement Feature
 **Current Branch**: `feature/email-2fa-phase-1`
-**Status**: **Phase 3 Complete - Ready for Phase 4**
+**Status**: **Phase 4 Complete - Ready for Phase 5**
 
 ---
 
@@ -89,11 +89,29 @@ static async invalidateExisting(userId) { return this.invalidateUserCodes(userId
 static async trackResend(userId) { return this.recordResend(userId); }
 ```
 
-### Phase 4: Login Flow Integration (PENDING - 7 commits planned)
-- Modify authentication controller for MFA mode handling
-- Add MFA check middleware
-- Implement trusted device handling
-- Add login flow tests
+### Phase 4: Login Flow Integration (COMPLETE - 4 commits)
+- Modified authController.js for unified MFA requirements check
+- Added determineMFARequirements() helper function
+- Updated mfaController.js with Email 2FA verification endpoints:
+  - `POST /api/auth/mfa/verify-email` - Verify email 2FA code
+  - `POST /api/auth/mfa/resend-email` - Resend email 2FA code
+  - `POST /api/auth/mfa/switch-method` - Switch between TOTP and Email
+- Added routes to mfa.js
+- Implemented trusted device handling in login flow
+- Created integration tests (86.7% pass rate)
+
+**Files Created/Modified**:
+- `backend/src/controllers/authController.js` - Added determineMFARequirements(), updated login()
+- `backend/src/controllers/mfaController.js` - Added verifyEmailCode(), resendEmailCode(), switchMFAMethod()
+- `backend/src/routes/mfa.js` - Added 3 new routes
+- `backend/tests/loginFlowEmail2FA.test.js` (New - 380 lines)
+
+**Key Features Implemented**:
+1. **Unified MFA Check**: Login now checks system config, TOTP, and Email 2FA
+2. **Automatic Email Code**: Sends 2FA code when Email is primary method
+3. **Method Switching**: Users can switch between TOTP and Email during login
+4. **Trusted Devices**: Skip MFA for devices user trusts
+5. **Enhanced Response**: Login returns availableMethods, backupMethod, deviceTrustEnabled
 
 ### Phase 5: Admin Settings UI (PENDING - 9 commits planned)
 - Admin MFA configuration page
@@ -112,19 +130,30 @@ static async trackResend(userId) { return this.recordResend(userId); }
 ## Git Status
 
 **Branch**: `feature/email-2fa-phase-1`
-**Total Commits**: 16
+**Total Commits**: 20 (Phase 4 adds 4 commits)
 
 ```
 # Recent commits (newest first)
+# Phase 4 commits (to be committed)
+feat(mfa): add login flow integration tests (Phase 4, Commit 4.4)
+feat(mfa): add Email 2FA verification routes (Phase 4, Commit 4.3)
+feat(mfa): add Email 2FA verification endpoints (Phase 4, Commit 4.2)
+feat(mfa): integrate MFA requirements in login flow (Phase 4, Commit 4.1)
+
+# Phase 3 commits
 28bfa79 test(mfa): add Email 2FA unit tests (Phase 3, Commit 3.6)
 62c6fbd feat(mfa): enhance Email2FACode model for service layer (Phase 3, Commit 3.5)
 18f9593 feat(mfa): add Email 2FA routes (Phase 3, Commit 3.4)
 bdd439d feat(mfa): add Email 2FA controller (Phase 3, Commit 3.3)
 179b7e5 feat(mfa): add MFA email sender service (Phase 3, Commit 3.2)
 7873f32 feat(mfa): add Email 2FA service (Phase 3, Commit 3.1)
+
+# Phase 2 commits
 05b924a test(mfa): add MFA admin API tests (Phase 2, Commit 2.6)
 855173a feat(mfa): add MFA action types to AuditLog (Phase 2, Commit 2.5)
 3ff01cd feat(mfa): add MFA admin API endpoints (Phase 2, Commits 2.1-2.4)
+
+# Phase 1 commits
 6f4c4e1 feat(mfa): add backend models for Email 2FA (Phase 1, Commit 1.7)
 # ... 6 more Phase 1 commits
 ```
@@ -152,16 +181,17 @@ docker-compose up -d
 curl http://localhost:5000/health
 ```
 
-### Start Phase 4
-When ready to continue, Phase 4 involves:
-1. Modify `authController.js` to check MFA requirements during login
-2. Create MFA check middleware
-3. Implement trusted device handling
-4. Add login flow integration tests
+### Start Phase 5 (Admin Settings UI)
+When ready to continue, Phase 5 involves:
+1. Create Admin MFA Configuration Page
+2. Add role-specific MFA settings UI
+3. Implement email template editor
+4. Add template preview functionality
+5. Create admin MFA tests
 
 ---
 
-## API Endpoints Added (Phases 1-3)
+## API Endpoints Added (Phases 1-4)
 
 ### Admin MFA Configuration (`/api/admin/mfa/*`)
 ```
@@ -196,6 +226,32 @@ POST   /api/auth/mfa/email/alternate/verify     - Verify alternate email (auth r
 DELETE /api/auth/mfa/email/alternate            - Remove alternate email (auth required)
 ```
 
+### Login Flow MFA Verification (`/api/auth/mfa/*`) - Phase 4
+```
+POST   /api/auth/mfa/verify-email               - Verify Email 2FA code during login
+POST   /api/auth/mfa/resend-email               - Resend Email 2FA code during login
+POST   /api/auth/mfa/switch-method              - Switch MFA method (TOTP ↔ Email)
+```
+
+**Enhanced Login Response** (when MFA required):
+```json
+{
+  "success": true,
+  "message": "MFA verification required",
+  "data": {
+    "mfaRequired": true,
+    "mfaChallengeToken": "jwt...",
+    "mfaMethod": "email",
+    "availableMethods": ["email", "totp"],
+    "backupMethod": "email",
+    "emailCodeSent": true,
+    "emailCodeExpiresAt": "2025-11-27T18:00:00.000Z",
+    "deviceTrustEnabled": true,
+    "deviceTrustDays": 30
+  }
+}
+```
+
 ---
 
 ## Known Issues Resolved
@@ -223,7 +279,7 @@ DELETE /api/auth/mfa/email/alternate            - Remove alternate email (auth r
 **Phase 11**: Testing & Documentation - COMPLETE (6/6 stories)
 **Project Progress**: 83% complete (54/65 stories)
 
-**Active Feature**: Email 2FA Enhancement - Phase 3/6 Complete (50%)
+**Active Feature**: Email 2FA Enhancement - Phase 4/6 Complete (66.7%)
 
 ---
 
@@ -247,4 +303,4 @@ DELETE /api/auth/mfa/email/alternate            - Remove alternate email (auth r
 ---
 
 *Last Updated: November 27, 2025*
-*Status: Email 2FA Enhancement - Phases 1-3 Complete, Phase 4 Next*
+*Status: Email 2FA Enhancement - Phases 1-4 Complete (66.7%), Phase 5 Next*

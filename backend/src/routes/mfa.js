@@ -14,6 +14,9 @@ const {
   regenerateBackupCodes,
   verifyTOTP,
   verifyBackupCode,
+  verifyEmailCode,
+  resendEmailCode,
+  switchMFAMethod,
   getMFAStatus,
   requestMFAReset,
   confirmMFAReset,
@@ -61,6 +64,28 @@ router.post('/verify', verifyTOTP);
  * @access  Public (requires MFA challenge token from login)
  */
 router.post('/verify-backup', verifyBackupCode);
+
+/**
+ * @route   POST /api/auth/mfa/verify-email
+ * @desc    Verify Email 2FA code during login (Phase 4)
+ * @access  Public (requires MFA challenge token from login)
+ */
+router.post('/verify-email', verifyEmailCode);
+
+/**
+ * @route   POST /api/auth/mfa/resend-email
+ * @desc    Resend Email 2FA code during login (Phase 4)
+ * @access  Public (requires MFA challenge token from login)
+ */
+router.post('/resend-email', resendEmailCode);
+
+/**
+ * @route   POST /api/auth/mfa/switch-method
+ * @desc    Switch MFA method during login (e.g., TOTP to Email) (Phase 4)
+ * @access  Public (requires MFA challenge token from login)
+ */
+router.post('/switch-method', switchMFAMethod);
+
 /**
  * @route   GET /api/auth/mfa/status
  * @desc    Get MFA status for authenticated user
