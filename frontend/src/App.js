@@ -24,6 +24,9 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersManagement from './pages/admin/UsersManagement';
 import UserDetailPage from './pages/admin/UserDetailPage';
 import AuditLogs from './pages/admin/AuditLogs';
+// Settings (Super Admin only)
+import SettingsHome from './pages/settings/SettingsHome';
+import EmailSettings from './pages/settings/EmailSettings';
 import apiService from './services/api';
 import './App.css';
 
@@ -82,6 +85,9 @@ function Navigation() {
           {isLoggedIn && (user?.role === 'admin' || user?.role === 'super_admin') && (
             <Link to="/admin/dashboard" className="nav-link">Admin</Link>
           )}
+          {isLoggedIn && user?.role === 'super_admin' && (
+            <Link to="/settings/home" className="nav-link">Settings</Link>
+          )}
           {isLoggedIn && (
             <button onClick={handleLogout} className="nav-link logout-button">
               Sign Out
@@ -121,6 +127,9 @@ function App() {
             <Route path="/admin/users/:id" element={<UserDetailPage />} />
             <Route path="/admin/audit-logs" element={<AuditLogs />} />
             <Route path="/security-alerts" element={<SecurityAlertsPage />} />
+            {/* Settings routes (Super Admin only) */}
+            <Route path="/settings/home" element={<SettingsHome />} />
+            <Route path="/settings/email" element={<EmailSettings />} />
           </Routes>
         </main>
 

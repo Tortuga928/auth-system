@@ -12,7 +12,8 @@ const LoginAttempt = require('../models/LoginAttempt');
 const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
 const { generateTokenPair, verifyRefreshToken, generateAccessToken, generateMFAChallengeToken } = require('../utils/jwt');
 const tokenService = require('../utils/tokenService');
-const emailService = require('../services/emailService');
+const dynamicEmailService = require('../services/dynamicEmailService');
+const { getVerificationSettings, checkGracePeriod } = require('../middleware/emailVerificationEnforcement');
 const { extractSessionMetadata } = require('../utils/sessionUtils');
 const { checkLoginSecurity } = require('../utils/securityDetection');
 
@@ -105,16 +106,23 @@ const register = async (req, res, next) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
 
-    // Send email without waiting (async, non-blocking)
-    emailService
-      .sendVerificationEmail(user.email, user.username, verificationUrl)
-      .then(() => {
-        console.log(`✅ Verification email sent to ${user.email}`);
-      })
-      .catch((error) => {
-        console.error('❌ Failed to send verification email:', error.message);
-        // Don't fail registration if email fails - user can resend later
-      });
+    // Check if email verification is enabled before sending
+    const verificationSettings = await getVerificationSettings();
+
+    if (verificationSettings.enabled) {
+      // Send email without waiting (async, non-blocking)
+      dynamicEmailService
+        .sendVerificationEmail(user.email, user.username, verificationUrl)
+        .then(() => {
+          console.log(`✅ Verification email sent to ${user.email}`);
+        })
+        .catch((error) => {
+          console.error('❌ Failed to send verification email:', error.message);
+          // Don't fail registration if email fails - user can resend later
+        });
+    } else {
+      console.log('📧 Email verification disabled - skipping verification email');
+    }
 
     // Generate tokens
     const tokens = generateTokenPair({
@@ -123,10 +131,14 @@ const register = async (req, res, next) => {
       role: user.role,
     });
 
-    // Return success response
+    // Return success response with appropriate message
+    const successMessage = verificationSettings.enabled
+      ? 'User registered successfully. Please check your email to verify your account.'
+      : 'User registered successfully.';
+
     res.status(201).json({
       success: true,
-      message: 'User registered successfully. Please check your email to verify your account.',
+      message: successMessage,
       data: {
         user: {
           id: user.id,
@@ -138,6 +150,11 @@ const register = async (req, res, next) => {
         tokens: {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
+        },
+        emailVerification: {
+          enabled: verificationSettings.enabled,
+          enforced: verificationSettings.enforced,
+          gracePeriodDays: verificationSettings.gracePeriodDays,
         },
       },
     });
@@ -255,7 +272,33 @@ const login = async (req, res, next) => {
       });
     }
 
-    // MFA not enabled - proceed with normal login
+    // MFA not enabled - check email verification enforcement
+
+    // Get verification settings
+    const verificationSettings = await getVerificationSettings();
+
+    // Check if email verification is enforced and user is not verified
+    if (verificationSettings.enforced && !user.email_verified) {
+      // Check grace period
+      const graceResult = checkGracePeriod(user.created_at, verificationSettings.gracePeriodDays);
+
+      if (!graceResult.isWithinGrace) {
+        // Grace period expired - block login
+        return res.status(403).json({
+          success: false,
+          message: 'Email verification required',
+          error: verificationSettings.gracePeriodDays > 0
+            ? 'Your grace period has expired. Please verify your email to continue.'
+            : 'Please verify your email address before logging in.',
+          data: {
+            emailVerificationRequired: true,
+            email_verified: false,
+            can_resend_verification: true,
+            grace_period_days: verificationSettings.gracePeriodDays,
+          },
+        });
+      }
+    }
 
     // Log successful login attempt
     await LoginAttempt.create({
@@ -300,24 +343,39 @@ const login = async (req, res, next) => {
       ...sessionMetadata,
     });
 
+    // Build response data
+    const responseData = {
+      mfaRequired: false,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        email_verified: user.email_verified,
+      },
+      tokens: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    };
+
+    // Add email verification warning if user is in grace period
+    if (verificationSettings.enforced && !user.email_verified) {
+      const graceResult = checkGracePeriod(user.created_at, verificationSettings.gracePeriodDays);
+      if (graceResult.isWithinGrace) {
+        responseData.emailVerificationWarning = {
+          message: `Please verify your email. ${graceResult.daysRemaining} days remaining.`,
+          daysRemaining: graceResult.daysRemaining,
+          gracePeriodDays: verificationSettings.gracePeriodDays,
+        };
+      }
+    }
+
     // Return success response
     res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: {
-        mfaRequired: false,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-          email_verified: user.email_verified,
-        },
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        },
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -538,7 +596,7 @@ const forgotPassword = async (req, res, next) => {
       const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
       // Send email without waiting (async, non-blocking)
-      emailService
+      dynamicEmailService
         .sendPasswordResetEmail(user.email, user.username, resetUrl)
         .then(() => {
           console.log(`✅ Password reset email sent to ${user.email}`);
@@ -635,7 +693,7 @@ const resetPassword = async (req, res, next) => {
     });
 
     // Send confirmation email asynchronously (non-blocking)
-    emailService
+    dynamicEmailService
       .sendPasswordResetConfirmationEmail(user.email, user.username)
       .then(() => {
         console.log(`✅ Password reset confirmation email sent to ${user.email}`);
@@ -685,6 +743,102 @@ const logout = async (req, res, next) => {
   }
 };
 
+/**
+ * Resend verification email
+ *
+ * POST /api/auth/resend-verification
+ * Requires authentication
+ */
+const resendVerificationEmail = async (req, res, next) => {
+  try {
+    // Check if email verification is enabled
+    const verificationSettings = await getVerificationSettings();
+
+    if (!verificationSettings.enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email verification is not enabled',
+      });
+    }
+
+    // Get current user
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if already verified
+    if (user.email_verified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is already verified',
+      });
+    }
+
+    // Generate new verification token
+    const { token: verificationToken, expires: verificationExpires } =
+      tokenService.generateEmailVerificationToken();
+
+    // Update user with new verification token
+    await User.update(user.id, {
+      email_verification_token: verificationToken,
+      email_verification_expires: verificationExpires,
+    });
+
+    // Send verification email
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+
+    try {
+      await dynamicEmailService.sendVerificationEmail(user.email, user.username, verificationUrl);
+      console.log(`✅ Verification email resent to ${user.email}`);
+
+      res.status(200).json({
+        success: true,
+        message: 'Verification email sent successfully',
+      });
+    } catch (emailError) {
+      console.error('❌ Failed to send verification email:', emailError.message);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again later.',
+        error: emailError.message,
+      });
+    }
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    next(error);
+  }
+};
+
+/**
+ * Get email verification settings (public endpoint for frontend)
+ *
+ * GET /api/auth/verification-settings
+ * Public endpoint
+ */
+const getEmailVerificationSettings = async (req, res, next) => {
+  try {
+    const settings = await getVerificationSettings();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        enabled: settings.enabled,
+        enforced: settings.enforced,
+        gracePeriodDays: settings.gracePeriodDays,
+      },
+    });
+  } catch (error) {
+    console.error('Get verification settings error:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -694,4 +848,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   logout,
+  resendVerificationEmail,
+  getEmailVerificationSettings,
 };
