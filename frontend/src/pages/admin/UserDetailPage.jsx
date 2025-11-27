@@ -17,6 +17,8 @@ const UserDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showAnonymizeConfirm, setShowAnonymizeConfirm] = useState(false);
+  const [anonymizeInput, setAnonymizeInput] = useState('');
 
   useEffect(() => {
     fetchUserDetail();

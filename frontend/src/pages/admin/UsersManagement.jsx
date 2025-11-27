@@ -13,7 +13,7 @@ import adminApi from '../../services/adminApi';
 const UsersManagement = () => {
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20, totalPages: 1, total: 0 });
-  const [filters, setFilters] = useState({ role: '', status: '', search: '' });
+  const [filters, setFilters] = useState({ role: '', status: 'active', search: '' });
   const [sortConfig, setSortConfig] = useState({ sortBy: 'created_at', sortOrder: 'DESC' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,7 +34,7 @@ const UsersManagement = () => {
         ...sortConfig,
       };
 
-      const response = await adminApi.getUsers(params);
+      const response = await adminApi.getUsersWithArchive(params);
       const data = response.data.data;
 
       setUsers(data.users || []);

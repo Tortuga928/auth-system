@@ -169,4 +169,48 @@ router.get('/dashboard/activity', isAdmin, adminController.getActivitySummary);
  */
 router.get('/dashboard/security', isAdmin, adminController.getSecurityOverview);
 
+
+/**
+ * @route   GET /api/admin/users-v2
+ * @desc    Get all users with archive status support
+ * @query   page, pageSize, role, status (active|inactive|archived|all), search
+ * @access  Admin
+ *
+ * Returns paginated list with archive filtering
+ * Default status = 'active' (shows only active, non-archived users)
+ */
+router.get('/users-v2', isAdmin, adminController.getUsersWithArchive);
+
+/**
+ * @route   POST /api/admin/users/:id/archive
+ * @desc    Archive a user (hide from default views)
+ * @param   id - User ID
+ * @access  Admin
+ *
+ * Archives user - sets archived_at timestamp, deactivates account
+ */
+router.post('/users/:id/archive', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_ARCHIVE, (req, data) => ({ targetId: parseInt(req.params.id), details: { action: 'archive' } })), adminController.archiveUser);
+
+/**
+ * @route   POST /api/admin/users/:id/restore
+ * @desc    Restore a user from archive
+ * @param   id - User ID
+ * @access  Admin
+ *
+ * Restores user - clears archived_at timestamp
+ * Note: User will still be inactive after restore
+ */
+router.post('/users/:id/restore', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_RESTORE, (req, data) => ({ targetId: parseInt(req.params.id), details: { action: 'restore' } })), adminController.restoreUser);
+
+/**
+ * @route   POST /api/admin/users/:id/anonymize
+ * @desc    Anonymize user data for GDPR compliance
+ * @param   id - User ID
+ * @access  Super Admin only
+ *
+ * Anonymizes PII - requires user to be archived first
+ * Irreversible action - requires type confirmation on frontend
+ */
+router.post('/users/:id/anonymize', isSuperAdmin, auditLog(auditLog.ACTION_TYPES.USER_ANONYMIZE, (req, data) => ({ targetId: parseInt(req.params.id), details: { action: 'anonymize' } })), adminController.anonymizeUser);
+
 module.exports = router;
