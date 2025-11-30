@@ -26,36 +26,95 @@
 
 **IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
 
-**Current Active Work**: Email 2FA Enhancement Feature - **COMPLETE & MERGED TO STAGING**
+**Current Active Work**: Send Test Email Enhancement - **COMPLETE**
 **Current Branch**: `staging`
 
 **Session Status**: [SESSION_CURRENT_STATUS.md](./SESSION_CURRENT_STATUS.md) - Current work and recovery
+**Enhancement Plan**: [docs/SEND_TEST_EMAIL_ENHANCEMENT.md](./docs/SEND_TEST_EMAIL_ENHANCEMENT.md) - Feature specification
 **Phase 10 Documentation**: [docs/PHASE_10_PLAN.md](./docs/PHASE_10_PLAN.md) - Complete phase plan
 **Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
 **Beta Environment**: https://auth-frontend-beta.onrender.com
 
-**Current Status** (November 27, 2025 - Email 2FA Enhancement COMPLETE):
+**Current Status** (November 30, 2025 - Send Test Email Enhancement):
+- ✅ **Send Test Email Enhancement** - **COMPLETE (commit e50bf5f)**
+  - ✅ Backend: emailTestService.js, user endpoint (rate limited), admin endpoint
+  - ✅ Frontend: TestEmailModal component, Dashboard button, Admin buttons
+  - ✅ Rate limiting: 30s cooldown + 25/day for users, no limits for admins
+  - ✅ UI tested and working
+- ✅ **Amazon SES Email Configuration** - **COMPLETE**
+  - ✅ SES configured with us-east-1 region
+  - ✅ Sender identity verified: noreply@nleos.com
+  - ✅ Recipient identity verified: MSTortuga7@outlook.com (sandbox mode)
+  - ✅ SMTP credentials configured in docker-compose.yml and .env
+  - ✅ Production access requested (under AWS review)
+  - ✅ Test emails sending successfully
+- ✅ **Email Verification Bug Fix** - **COMPLETE (commit 18e39ed)**
+  - ✅ Created EmailVerificationPage.js component
+  - ✅ Added /verify-email/:token route to App.js
+  - ✅ Added verifyEmail method to api.js
+  - ✅ Pushed to staging branch
 - ✅ **Email 2FA Enhancement Feature** - **COMPLETE (6/6 phases - 100%)**
-  - ✅ Phase 1: Database Schema & Backend Foundation (7 commits)
-  - ✅ Phase 2: MFA Configuration Admin API (3 commits)
-  - ✅ Phase 3: Email 2FA Core Backend Logic (6 commits)
-  - ✅ Phase 4: Login Flow Integration (4 commits)
-  - ✅ Phase 5: Admin Settings UI (1 commit)
-  - ✅ Phase 6: User MFA Setup Wizard & Login UI (1 commit)
-  - **Merged to staging** - commit `c19ba7c`, pushed to remote
-  - **36 files changed**, 9,061 insertions(+), 212 deletions(-)
-- ✅ **Phase 7 Complete** - All MFA features (Stories 7.1-7.5) - 100% tested in beta
-- ✅ **Phase 8 Complete** - User Dashboard & Profile Management (6/6 stories, 100%)
-- ✅ **Phase 9 Complete** - Session Management & Security (5/5 stories, 100%)
-- ✅ **Phase 10 Complete** - Admin Panel (6/6 stories, 100% complete)
-- ✅ **Phase 11 COMPLETE** - Testing & Documentation (6/6 stories, 100%)
-- ✅ **Email Service Configuration Feature** (5/6 phases complete)
-- ✅ **Archive User Feature** (COMPLETE - 22/22 tests passed)
+- ✅ **Phase 7-11 Complete** - All previous phases deployed to beta
+- ✅ **Archive User Feature** - COMPLETE (22/22 tests passed)
 
-**Next Steps**:
-1. Test Email 2FA locally with Docker
-2. Merge staging → beta for deployment testing
-3. Merge beta → master for production
+**Next Steps** (When Ready):
+1. **Deploy to Beta** - Merge staging → beta, push to trigger auto-deploy
+2. **Test on Beta** - Verify Send Test Email works with real SES emails
+3. **Production Deploy** - After beta testing and SES production approval
+
+**Email Configuration** (Amazon SES - us-east-1):
+```
+SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<AWS SES SMTP username>
+SMTP_PASS=<AWS SES SMTP password>
+FROM_EMAIL=noreply@nleos.com
+FROM_NAME=Auth System
+```
+
+**Most Recent Work** (November 30, 2025 - Session 6):
+
+**Session 6 - Send Test Email Enhancement (COMPLETE)**:
+
+**Feature**: Added "Send Test Email" button for users and admins to verify email delivery
+
+**Implementation**:
+1. **Backend**
+   - Created emailTestService.js with branded HTML test email template
+   - Added POST /api/user/test-email with rate limiting (30s cooldown, 25/day)
+   - Added POST /api/admin/users/:id/test-email (no rate limits for admins)
+   - Integrated activity logging (users) and audit logging (admins)
+
+2. **Frontend**
+   - Created TestEmailModal.jsx component (loading/success/error states)
+   - Added "Send Test Email" button to Dashboard Quick Actions
+   - Added 📧 button to UsersManagement table actions
+   - Added "Send Test Email" button to UserDetailPage
+   - Admin mode shows Message ID for debugging
+
+3. **Files Created**:
+   - backend/src/services/emailTestService.js
+   - frontend/src/components/TestEmailModal.jsx
+
+4. **Files Modified**:
+   - backend/src/routes/user.js
+   - backend/src/routes/admin.js
+   - backend/src/middleware/rateLimiter.js
+   - frontend/src/services/api.js
+   - frontend/src/services/adminApi.js
+   - frontend/src/pages/DashboardPage.js
+   - frontend/src/pages/admin/UsersManagement.jsx
+   - frontend/src/pages/admin/UserDetailPage.jsx
+
+**Commit**: e50bf5f - feat(email): add Send Test Email enhancement
+**Branch**: staging
+**Status**: ✅ COMPLETE - UI tested and working
+
+**Test URLs**:
+- User Dashboard: http://localhost:3000/dashboard → Quick Actions → "Send Test Email"
+- Admin Users: http://localhost:3000/admin/users → 📧 button per row
+- Admin User Detail: http://localhost:3000/admin/users/:id → "Send Test Email" button
 
 **Most Recent Work** (Phase 11 Story 11.1 - Nov 19, 2025 Session 3):
 
@@ -1148,6 +1207,6 @@ When the user says they want to start a new phase or user story from PROJECT_ROA
 
 ---
 
-*Last Updated: November 27, 2025*
-*Version: 2.2*
-*Current Status: Email 2FA Enhancement COMPLETE - Merged to staging, ready for beta deployment*
+*Last Updated: November 30, 2025*
+*Version: 2.4*
+*Current Status: Send Test Email Enhancement - COMPLETE*
