@@ -76,16 +76,16 @@ const adminApi = {
   resetMFAConfig: () => api.post('/api/admin/mfa/config/reset'),
 
   // MFA Role Configs
-  getMFARoleConfigs: () => api.get('/api/admin/mfa/role-configs'),
-  getMFARoleConfig: (role) => api.get(`/api/admin/mfa/role-configs/${role}`),
-  updateMFARoleConfig: (role, data) => api.put(`/api/admin/mfa/role-configs/${role}`, data),
+  getMFARoleConfigs: () => api.get('/api/admin/mfa/roles'),
+  getMFARoleConfig: (role) => api.get(`/api/admin/mfa/roles/${role}`),
+  updateMFARoleConfig: (role, data) => api.put(`/api/admin/mfa/roles/${role}`, data),
 
   // MFA Email Templates
-  getMFATemplates: () => api.get('/api/admin/mfa/templates'),
-  getMFATemplate: (type) => api.get(`/api/admin/mfa/templates/${type}`),
-  updateMFATemplate: (type, data) => api.put(`/api/admin/mfa/templates/${type}`, data),
-  activateMFATemplate: (type) => api.post(`/api/admin/mfa/templates/${type}/activate`),
-  resetMFATemplate: (type) => api.post(`/api/admin/mfa/templates/${type}/reset`),
+  getMFATemplates: () => api.get('/api/admin/mfa/email-template'),
+  getMFATemplate: (type) => api.get(`/api/admin/mfa/email-template/${type}`),
+  updateMFATemplate: (type, data) => api.put(`/api/admin/mfa/email-template/${type}`, data),
+  activateMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/activate`),
+  resetMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/reset`),
 
   // MFA User Management
   getMFAUsers: () => api.get('/api/admin/mfa/users'),
