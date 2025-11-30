@@ -600,6 +600,12 @@ class User {
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
     const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
+    // Use case-insensitive sorting for text columns
+    const textColumns = ['username', 'email', 'role'];
+    const orderByColumn = textColumns.includes(safeSortBy)
+      ? `LOWER(${safeSortBy})`
+      : safeSortBy;
+
     // Get total count
     const countQuery = `SELECT COUNT(*) as count FROM users ${whereClause}`;
     const countResult = await db.query(countQuery, values);
@@ -611,7 +617,7 @@ class User {
              is_active, avatar_url, archived_at, anonymized_at, created_at, updated_at
       FROM users
       ${whereClause}
-      ORDER BY ${safeSortBy} ${safeSortOrder}
+      ORDER BY ${orderByColumn} ${safeSortOrder}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
     `;
     values.push(pageSize, offset);
