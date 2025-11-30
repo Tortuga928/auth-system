@@ -70,7 +70,8 @@ const MFASettings = () => {
 
       setConfig(configRes.data.data);
       setRoleConfigs(roleRes.data.data || []);
-      setTemplates(templateRes.data.data || []);
+      // Backend returns { activeTemplate, templates } - extract the templates array
+      setTemplates(templateRes.data.data?.templates || []);
     } catch (err) {
       console.error('Failed to load MFA settings:', err);
       setError(err.response?.data?.message || 'Failed to load MFA settings');
@@ -136,7 +137,10 @@ const MFASettings = () => {
     tab: {
       padding: '12px 24px',
       cursor: 'pointer',
-      border: 'none',
+      borderTop: 'none',
+      borderLeft: 'none',
+      borderRight: 'none',
+      borderBottom: '2px solid transparent',
       background: 'none',
       fontSize: '14px',
       fontWeight: '500',
