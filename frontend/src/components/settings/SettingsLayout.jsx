@@ -34,6 +34,7 @@ const SettingsLayout = ({ children, title = 'Settings' }) => {
   const menuItems = [
     { path: '/settings/home', label: 'Home', icon: '🏠', description: 'Overview and warnings' },
     { path: '/settings/email', label: 'Email', icon: '📧', description: 'Email service configuration' },
+    { path: '/admin/mfa-settings', label: 'MFA Settings', icon: '🔐', description: 'Multi-factor authentication' },
   ];
 
   const isActive = (path) => location.pathname === path;
