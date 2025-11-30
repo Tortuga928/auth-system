@@ -13,6 +13,7 @@ import ActivityLogPage from './pages/ActivityLogPage';
 import AccountSettingsPage from './pages/AccountSettingsPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import MFASettingsPage from './pages/MFASettingsPage';
 // Story 9.5: Device Management UI
@@ -118,6 +119,7 @@ function App() {
             <Route path="/settings" element={<AccountSettingsPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+            <Route path="/verify-email/:token" element={<EmailVerificationPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="/mfa-settings" element={<MFASettingsPage />} />
             {/* Story 9.5: Device Management UI */}

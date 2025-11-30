@@ -76,6 +76,7 @@ const apiService = {
     refreshToken: () => api.post('/api/auth/refresh'),
     forgotPassword: (data) => api.post('/api/auth/forgot-password', data),
     resetPassword: (token, data) => api.post(`/api/auth/reset-password/${token}`, data),
+    verifyEmail: (token) => api.get(`/api/auth/verify-email/${token}`),
     verifyMFA: (data) => api.post('/api/auth/mfa/verify', data),
     verifyBackupCode: (data) => api.post('/api/auth/mfa/verify-backup', data),
     // Email 2FA endpoints (Phase 6)
