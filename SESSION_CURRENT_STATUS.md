@@ -1,7 +1,7 @@
 # Current Session Status - November 30, 2025
 
-**Last Updated**: November 30, 2025 - Send Test Email Enhancement COMPLETE
-**Working On**: Feature complete, ready for beta deployment
+**Last Updated**: November 30, 2025 - Sorting Bug Fix COMPLETE
+**Working On**: Bug fix complete, ready for beta deployment
 **Current Branch**: `staging`
 **Status**: **FEATURE COMPLETE - Tested and committed**
 
@@ -73,6 +73,14 @@ Added "Send Test Email" button to allow users and admins to verify email deliver
 ---
 
 ## ✅ Completed Today (November 30, 2025)
+
+### 0. Admin User Management Sorting Bug Fix (COMPLETE)
+- ✅ Identified bug: username sorting was case-sensitive (uppercase sorted before lowercase)
+- ✅ Root cause: PostgreSQL default sort uses ASCII order ('M' < 'a')
+- ✅ Fixed by wrapping text columns (username, email, role) with LOWER() in SQL ORDER BY
+- ✅ All 14 filter/sort tests passing
+- ✅ Committed: a9751bb
+- ✅ File modified: backend/src/models/User.js (findAllWithArchive method)
 
 ### 1. Send Test Email Enhancement (COMPLETE)
 - ✅ Created emailTestService.js with branded HTML template
