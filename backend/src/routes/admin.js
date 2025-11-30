@@ -112,6 +112,75 @@ router.put('/users/:id/status', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_STA
 router.put('/users/:id/reactivate', isAdmin, auditLog(auditLog.ACTION_TYPES.USER_STATUS_CHANGE, (req, data) => ({ targetId: parseInt(req.params.id), details: { is_active: true, action: 'reactivate' } })), adminController.reactivateUser);
 
 /**
+ * @route   POST /api/admin/users/:id/test-email
+ * @desc    Send test email to a user (for admin verification)
+ * @param   id - User ID
+ * @access  Admin (no rate limiting)
+ *
+ * Sends a branded test email to the target user's email address.
+ * Returns technical error details for debugging.
+ * Logs action to audit log.
+ */
+router.post('/users/:id/test-email', isAdmin, async (req, res) => {
+  const User = require('../models/User');
+  const emailTestService = require('../services/emailTestService');
+  const { logAdminAction, ACTION_TYPES, TARGET_TYPES } = require('../middleware/auditLog');
+
+  try {
+    const targetUserId = parseInt(req.params.id);
+
+    // Get target user
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+        message: `No user found with ID ${targetUserId}`,
+      });
+    }
+
+    // Send test email
+    const result = await emailTestService.sendBrandedTestEmail(targetUser.email);
+
+    // Log to audit log
+    await logAdminAction(
+      req,
+      ACTION_TYPES.USER_UPDATE || 'TEST_EMAIL_SENT',
+      TARGET_TYPES.USER || 'USER',
+      targetUserId,
+      {
+        action: 'test_email_sent',
+        recipient: targetUser.email,
+        messageId: result.messageId,
+        timestamp: result.timestamp,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Test email sent successfully',
+      email: targetUser.email,
+      timestamp: result.timestamp,
+      messageId: result.messageId,
+    });
+  } catch (error) {
+    console.error('Admin test email error:', error);
+
+    // Return technical details for admins
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send test email',
+      message: error.message,
+      details: {
+        code: error.code,
+        command: error.command,
+        response: error.response,
+      },
+    });
+  }
+});
+
+/**
  * @route   GET /api/admin/audit-logs
  * @desc    Get audit logs of admin actions
  * @query   page, pageSize, admin_id, action, start_date, end_date

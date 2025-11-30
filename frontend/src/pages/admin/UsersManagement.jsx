@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import adminApi from '../../services/adminApi';
 
+import TestEmailModal from '../../components/TestEmailModal';
 const UsersManagement = () => {
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pageSize: 20, totalPages: 1, total: 0 });
@@ -21,6 +22,8 @@ const UsersManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
+  const [testEmailUser, setTestEmailUser] = useState(null);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -164,6 +167,11 @@ Email: ${user.email}`;
     setShowEditModal(true);
   };
 
+
+  const handleTestEmailClick = (user) => {
+    setTestEmailUser(user);
+    setShowTestEmailModal(true);
+  };
   const handleEditSuccess = (message) => {
     setShowEditModal(false);
     setSelectedUser(null);
@@ -422,6 +430,14 @@ Email: ${user.email}`;
                             👁️
                           </button>
                         </Link>
+                        <button
+                          style={{ ...styles.actionBtn, backgroundColor: '#17a2b8', color: '#fff' }}
+                          title="Send Test Email"
+                          onClick={() => handleTestEmailClick(user)}
+                          disabled={actionLoading}
+                        >
+                          📧
+                        </button>
                         <select
                           style={{ ...styles.actionBtn, padding: '4px', fontSize: '11px' }}
                           value={user.role}
@@ -524,6 +540,23 @@ Email: ${user.email}`;
             setSelectedUser(null);
           }}
           onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {/* Test Email Modal */}
+      {showTestEmailModal && testEmailUser && (
+        <TestEmailModal
+          isOpen={showTestEmailModal}
+          onClose={() => {
+            setShowTestEmailModal(false);
+            setTestEmailUser(null);
+          }}
+          isAdmin={true}
+          userEmail={testEmailUser.email}
+          sendTestEmail={async () => {
+            const response = await adminApi.sendTestEmail(testEmailUser.id);
+            return response.data;
+          }}
         />
       )}
     </AdminLayout>

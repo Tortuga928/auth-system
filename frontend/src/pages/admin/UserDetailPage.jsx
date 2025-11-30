@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout';
 import adminApi from '../../services/adminApi';
 
+import TestEmailModal from '../../components/TestEmailModal';
 const UserDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const UserDetailPage = () => {
   const [showAnonymizeConfirm, setShowAnonymizeConfirm] = useState(false);
   const [anonymizeInput, setAnonymizeInput] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
 
   useEffect(() => {
     fetchUserDetail();
@@ -227,6 +229,9 @@ const UserDetailPage = () => {
                 <button style={{ ...styles.btn, ...styles.warningBtn }} onClick={handleStatusToggle} disabled={actionLoading}>
                   {user.is_active ? '🔒 Deactivate User' : '🔓 Activate User'}
                 </button>
+                <button style={{ ...styles.btn, backgroundColor: '#17a2b8', color: '#fff' }} onClick={() => setShowTestEmailModal(true)} disabled={actionLoading}>
+                  📧 Send Test Email
+                </button>
                 <select style={{ ...styles.select, flex: 1, minWidth: '150px' }} value={user.role} onChange={(e) => handleRoleChange(e.target.value)} disabled={actionLoading}>
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
@@ -261,6 +266,20 @@ const UserDetailPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Test Email Modal */}
+      {showTestEmailModal && user && (
+        <TestEmailModal
+          isOpen={showTestEmailModal}
+          onClose={() => setShowTestEmailModal(false)}
+          isAdmin={true}
+          userEmail={user.email}
+          sendTestEmail={async () => {
+            const response = await adminApi.sendTestEmail(user.id);
+            return response.data;
+          }}
+        />
       )}
     </AdminLayout>
   );

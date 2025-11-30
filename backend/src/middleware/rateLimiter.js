@@ -148,6 +148,60 @@ const apiLimiter = isTestEnv ? skipRateLimit : rateLimit({
   },
 });
 
+
+/**
+ * Test email rate limiter (daily limit)
+ * Limits: 25 test emails per 24 hours per user
+ * Prevents email abuse
+ */
+const testEmailDailyLimiter = isTestEnv ? skipRateLimit : rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 25, // 25 requests per day
+  message: {
+    error: 'Daily test email limit reached',
+    message: 'You have reached the daily limit for test emails. Please try again tomorrow.',
+    retryAfter: 'tomorrow',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => 'test_email_daily:' + (req.user?.id || req.ip),
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Daily limit reached',
+      message: 'You have reached the daily limit for test emails (25 per day). Please try again tomorrow.',
+      retryAfter: Math.ceil(req.rateLimit.resetTime / 1000),
+    });
+  },
+});
+
+/**
+ * Test email cooldown limiter
+ * Limits: 1 request per 30 seconds per user
+ * Prevents rapid repeated requests
+ */
+const testEmailCooldownLimiter = isTestEnv ? skipRateLimit : rateLimit({
+  windowMs: 30 * 1000, // 30 seconds
+  max: 1, // 1 request per 30 seconds
+  message: {
+    error: 'Please wait before sending another test email',
+    retryAfter: '30 seconds',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => 'test_email_cooldown:' + (req.user?.id || req.ip),
+  handler: (req, res) => {
+    const remainingSeconds = Math.ceil((req.rateLimit.resetTime - Date.now()) / 1000);
+    res.status(429).json({
+      success: false,
+      error: 'Cooldown active',
+      message: 'Please wait ' + remainingSeconds + ' seconds before sending another test email.',
+      cooldownRemaining: remainingSeconds,
+      retryAfter: remainingSeconds,
+    });
+  },
+});
+
 module.exports = {
   registrationLimiter,
   loginLimiter,
@@ -155,4 +209,6 @@ module.exports = {
   emailVerificationLimiter,
   mfaVerificationLimiter,
   apiLimiter,
+  testEmailDailyLimiter,
+  testEmailCooldownLimiter,
 };

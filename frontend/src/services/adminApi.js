@@ -35,6 +35,9 @@ const adminApi = {
   reactivateUser: (id) => api.put(`/api/admin/users/${id}/reactivate`),
   searchUsers: (query, limit = 10) => api.get(`/api/admin/users/search?q=${encodeURIComponent(query)}&limit=${limit}`),
 
+  // Send test email to a user (no rate limiting for admins)
+  sendTestEmail: (userId) => api.post(`/api/admin/users/${userId}/test-email`),
+
   // Archive management
   getUsersWithArchive: (params = {}) => {
     const queryParams = new URLSearchParams();
