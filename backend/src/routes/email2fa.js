@@ -117,4 +117,48 @@ router.post('/email/alternate/verify', authenticate, email2FAController.verifyAl
  */
 router.delete('/email/alternate', authenticate, email2FAController.removeAlternateEmail);
 
+
+// ============================================
+// TRUSTED DEVICES ROUTES
+// ============================================
+
+/**
+ * @route   GET /api/auth/mfa/trusted-devices
+ * @desc    Get all trusted devices for current user
+ * @access  Authenticated
+ */
+router.get('/trusted-devices', authenticate, email2FAController.getTrustedDevices);
+
+/**
+ * @route   DELETE /api/auth/mfa/trusted-devices/:deviceId
+ * @desc    Remove a specific trusted device
+ * @access  Authenticated
+ */
+router.delete('/trusted-devices/:deviceId', authenticate, email2FAController.removeTrustedDevice);
+
+/**
+ * @route   DELETE /api/auth/mfa/trusted-devices
+ * @desc    Remove all trusted devices
+ * @access  Authenticated
+ */
+router.delete('/trusted-devices', authenticate, email2FAController.removeAllTrustedDevices);
+
+// ============================================
+// MFA PREFERENCES ROUTES
+// ============================================
+
+/**
+ * @route   GET /api/auth/mfa/preferences
+ * @desc    Get MFA preferences for current user
+ * @access  Authenticated
+ */
+router.get('/preferences', authenticate, email2FAController.getPreferences);
+
+/**
+ * @route   PUT /api/auth/mfa/preferences
+ * @desc    Update MFA preferences for current user
+ * @access  Authenticated
+ */
+router.put('/preferences', authenticate, email2FAController.updatePreferences);
+
 module.exports = router;

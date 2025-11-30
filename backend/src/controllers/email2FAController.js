@@ -12,6 +12,7 @@ const email2FAService = require('../services/email2FAService');
 const mfaEmailSender = require('../services/mfaEmailSender');
 const MFAConfig = require('../models/MFAConfig');
 const UserMFAPreferences = require('../models/UserMFAPreferences');
+const TrustedDevice = require('../models/TrustedDevice');
 const User = require('../models/User');
 
 /**
@@ -539,6 +540,162 @@ const getPublicConfig = async (req, res) => {
   }
 };
 
+
+/**
+ * Get trusted devices for current user
+ * GET /api/auth/mfa/trusted-devices
+ */
+const getTrustedDevices = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const devices = await TrustedDevice.getByUserId(userId);
+
+    res.json({
+      success: true,
+      data: {
+        devices: devices.map(d => ({
+          id: d.id,
+          device_name: d.device_name,
+          browser: d.browser,
+          os: d.os,
+          device_type: d.device_type,
+          trusted_at: d.trusted_at,
+          expires_at: d.expires_at,
+          last_used: d.last_used,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error('Error getting trusted devices:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get trusted devices',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Remove a trusted device
+ * DELETE /api/auth/mfa/trusted-devices/:deviceId
+ */
+const removeTrustedDevice = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { deviceId } = req.params;
+
+    const deleted = await TrustedDevice.removeById(deviceId, userId);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        error: 'Device not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Device removed successfully',
+    });
+  } catch (error) {
+    console.error('Error removing trusted device:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove trusted device',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Remove all trusted devices for current user
+ * DELETE /api/auth/mfa/trusted-devices
+ */
+const removeAllTrustedDevices = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    await TrustedDevice.removeAllByUserId(userId);
+
+    res.json({
+      success: true,
+      message: 'All trusted devices removed successfully',
+    });
+  } catch (error) {
+    console.error('Error removing all trusted devices:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove trusted devices',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get MFA preferences for current user
+ * GET /api/auth/mfa/preferences
+ */
+const getPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const prefs = await UserMFAPreferences.getByUserId(userId);
+
+    res.json({
+      success: true,
+      data: {
+        preferredMethod: prefs.preferred_method,
+        email2faEnabled: prefs.email_2fa_enabled,
+        alternateEmail: prefs.alternate_email,
+        alternateEmailVerified: prefs.alternate_email_verified,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting MFA preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get MFA preferences',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Update MFA preferences for current user
+ * PUT /api/auth/mfa/preferences
+ */
+const updatePreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { preferredMethod } = req.body;
+
+    if (preferredMethod && !['totp', 'email'].includes(preferredMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid preferred method. Must be "totp" or "email"',
+      });
+    }
+
+    const updates = {};
+    if (preferredMethod) updates.preferred_method = preferredMethod;
+
+    const prefs = await UserMFAPreferences.update(userId, updates);
+
+    res.json({
+      success: true,
+      message: 'Preferences updated successfully',
+      data: {
+        preferredMethod: prefs.preferred_method,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating MFA preferences:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update MFA preferences',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   // Code verification
   requestCode,
@@ -557,4 +714,13 @@ module.exports = {
   setAlternateEmail,
   verifyAlternateEmail,
   removeAlternateEmail,
+
+  // Trusted devices
+  getTrustedDevices,
+  removeTrustedDevice,
+  removeAllTrustedDevices,
+
+  // Preferences
+  getPreferences,
+  updatePreferences,
 };

@@ -74,6 +74,7 @@ const updateMFAConfig = async (req, res) => {
     // Log the configuration change
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_CONFIG_UPDATE',
       target_type: 'system',
       target_id: null,
@@ -111,6 +112,7 @@ const resetMFAConfig = async (req, res) => {
     // Log the reset
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_CONFIG_RESET',
       target_type: 'system',
       target_id: null,
@@ -181,6 +183,7 @@ const updateMFARoleConfig = async (req, res) => {
     // Log the change
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_ROLE_CONFIG_UPDATE',
       target_type: 'role',
       target_id: null,
@@ -244,6 +247,7 @@ const updateEmailTemplate = async (req, res) => {
     // Log the change
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_UPDATE',
       target_type: 'email_template',
       target_id: parseInt(id),
@@ -280,6 +284,7 @@ const activateEmailTemplate = async (req, res) => {
     // Log the change
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_ACTIVATE',
       target_type: 'email_template',
       target_id: parseInt(id),
@@ -371,6 +376,7 @@ const resetEmailTemplates = async (req, res) => {
     // Log the reset
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_RESET',
       target_type: 'email_template',
       target_id: null,
@@ -435,6 +441,7 @@ const forceTransition = async (req, res) => {
     // Log the action
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_FORCE_TRANSITION',
       target_type: 'user',
       target_id: parseInt(userId),
@@ -471,6 +478,7 @@ const unlockUserMFA = async (req, res) => {
     // Log the action
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_UNLOCK_USER',
       target_type: 'user',
       target_id: parseInt(id),
@@ -518,6 +526,7 @@ const applyMethodChange = async (req, res) => {
     // Log the change
     await AuditLog.create({
       admin_id: req.user.id,
+      admin_email: req.user.email,
       action: 'MFA_APPLY_METHOD_CHANGE',
       target_type: 'system',
       target_id: null,
