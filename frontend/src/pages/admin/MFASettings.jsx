@@ -50,11 +50,13 @@ const MFASettings = () => {
   const [config, setConfig] = useState(null);
   const [roleConfigs, setRoleConfigs] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState('summary');
 
   // Fetch all MFA configuration data
   const fetchData = useCallback(async () => {
@@ -83,6 +85,27 @@ const MFASettings = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch MFA summary data
+  const fetchSummary = useCallback(async () => {
+    try {
+      setSummaryLoading(true);
+      const res = await adminApi.getMFASummary();
+      setSummary(res.data.data);
+    } catch (err) {
+      console.error('Failed to load MFA summary:', err);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, []);
+
+  // Fetch summary when tab changes to summary
+  useEffect(() => {
+    if (activeTab === 'summary') {
+      fetchSummary();
+    }
+  }, [activeTab, fetchSummary]);
+
 
   // Update global config
   const handleConfigUpdate = async (updates) => {
@@ -329,6 +352,12 @@ const MFASettings = () => {
       {/* Tabs */}
       <div style={styles.tabs}>
         <button
+          style={{ ...styles.tab, ...(activeTab === 'summary' ? styles.tabActive : {}) }}
+          onClick={() => setActiveTab('summary')}
+        >
+          MFA Summary
+        </button>
+        <button
           style={{ ...styles.tab, ...(activeTab === 'general' ? styles.tabActive : {}) }}
           onClick={() => setActiveTab('general')}
         >
@@ -359,6 +388,297 @@ const MFASettings = () => {
           Email Templates
         </button>
       </div>
+
+
+      {/* MFA Summary Tab */}
+      {activeTab === 'summary' && (
+        <>
+          {summaryLoading ? (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+              <p>Loading MFA summary...</p>
+            </div>
+          ) : summary ? (
+            <>
+              {/* Refresh Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+                <button
+                  style={{ ...styles.button, ...styles.secondaryButton }}
+                  onClick={fetchSummary}
+                  disabled={summaryLoading}
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {/* Current Settings Section */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>
+                  <span>Settings Overview</span>
+                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#7f8c8d' }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('general'); }} style={{ color: '#3498db', textDecoration: 'none' }}>Edit</a>
+                  </span>
+                </h3>
+
+                <div style={styles.divider} />
+
+                {/* General Settings */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>General</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>MFA Mode</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.general?.mfaMode?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Disabled'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>User Control</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.general?.userControlMode?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'User Managed'}</div>
+                  </div>
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* Email 2FA Settings */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>
+                  Email 2FA
+                  <span style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'normal' }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('email'); }} style={{ color: '#3498db', textDecoration: 'none' }}>Edit</a>
+                  </span>
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Code Format</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.email2fa?.codeFormat || '6-digit'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Code Expiration</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.email2fa?.codeExpirationMinutes || 5} minutes</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Max Failed Attempts</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.email2fa?.maxFailedAttempts || 5}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Lockout Behavior</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.email2fa?.lockoutBehavior?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Temporary'}</div>
+                  </div>
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* Device Trust Settings */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>
+                  Device Trust
+                  <span style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'normal' }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('devices'); }} style={{ color: '#3498db', textDecoration: 'none' }}>Edit</a>
+                  </span>
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Status</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.deviceTrust?.enabled ? 'Enabled' : 'Disabled'}</div>
+                  </div>
+                  {summary.settings?.deviceTrust?.enabled && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Trust Duration</div>
+                        <div style={{ fontWeight: '500' }}>{summary.settings?.deviceTrust?.durationDays || 30} days</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Max Devices</div>
+                        <div style={{ fontWeight: '500' }}>{summary.settings?.deviceTrust?.maxDevices || 5}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* Role-Based Settings */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>
+                  Role-Based MFA
+                  <span style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'normal' }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('roles'); }} style={{ color: '#3498db', textDecoration: 'none' }}>Edit</a>
+                  </span>
+                </h4>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Status</div>
+                  <div style={{ fontWeight: '500' }}>{summary.settings?.roles?.enabled ? 'Enabled' : 'Disabled'}</div>
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* Email Templates */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>
+                  Email Templates
+                  <span style={{ marginLeft: '10px', fontSize: '12px', fontWeight: 'normal' }}>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setActiveTab('templates'); }} style={{ color: '#3498db', textDecoration: 'none' }}>Edit</a>
+                  </span>
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Active Template</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.templates?.activeTemplate?.name || 'Default'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Total Templates</div>
+                    <div style={{ fontWeight: '500' }}>{summary.settings?.templates?.totalTemplates || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistics Section */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>Statistics</h3>
+
+                <div style={styles.divider} />
+
+                {/* User MFA Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3498db' }}>{summary.statistics?.users?.total || 0}</div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Active Users</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#27ae60' }}>{summary.statistics?.users?.withMfa || 0}</div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Users with MFA</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#9b59b6' }}>{summary.statistics?.users?.adoptionRate || 0}%</div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Adoption Rate</div>
+                  </div>
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* MFA by Type */}
+                <h4 style={{ marginBottom: '10px', color: '#2c3e50' }}>MFA by Type</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>TOTP Users</div>
+                    <div style={{ fontWeight: '500', fontSize: '18px' }}>{summary.statistics?.mfaByType?.totp || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Email 2FA Users</div>
+                    <div style={{ fontWeight: '500', fontSize: '18px' }}>{summary.statistics?.mfaByType?.email2fa || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Both Methods</div>
+                    <div style={{ fontWeight: '500', fontSize: '18px' }}>{summary.statistics?.mfaByType?.both || 0}</div>
+                  </div>
+                </div>
+
+                <div style={styles.divider} />
+
+                {/* Other Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Trusted Devices</div>
+                    <div style={{ fontWeight: '500', fontSize: '18px' }}>{summary.statistics?.trustedDevices || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Users with Backup Codes</div>
+                    <div style={{ fontWeight: '500', fontSize: '18px' }}>{summary.statistics?.backupCodes?.usersGenerated || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity Section */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>
+                  Activity (Last {summary.activity?.period || '7 days'})
+                  <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#7f8c8d' }}>
+                    <a href="/admin/audit-logs?action=MFA" style={{ color: '#3498db', textDecoration: 'none' }}>View Audit Logs</a>
+                  </span>
+                </h3>
+
+                <div style={styles.divider} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px' }}>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#27ae60' }}>
+                      {summary.activity?.setups?.count || 0}
+                      {summary.activity?.setups?.trend === 'up' && <span style={{ color: '#27ae60', marginLeft: '5px' }}>+</span>}
+                      {summary.activity?.setups?.trend === 'down' && <span style={{ color: '#e74c3c', marginLeft: '5px' }}>-</span>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>New Setups</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3498db' }}>
+                      {summary.activity?.verifications?.count || 0}
+                      {summary.activity?.verifications?.trend === 'up' && <span style={{ color: '#27ae60', marginLeft: '5px' }}>+</span>}
+                      {summary.activity?.verifications?.trend === 'down' && <span style={{ color: '#e74c3c', marginLeft: '5px' }}>-</span>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Verifications</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#e74c3c' }}>
+                      {summary.activity?.failures?.count || 0}
+                      {summary.activity?.failures?.trend === 'up' && <span style={{ color: '#e74c3c', marginLeft: '5px' }}>!</span>}
+                      {summary.activity?.failures?.trend === 'down' && <span style={{ color: '#27ae60', marginLeft: '5px' }}>-</span>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Failed Attempts</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Role Compliance Section */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>Role Compliance</h3>
+
+                <div style={styles.divider} />
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Role</th>
+                        <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Total Users</th>
+                        <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>MFA Enabled</th>
+                        <th style={{ padding: '12px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Compliance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(summary.compliance || []).map((item) => (
+                        <tr key={item.role}>
+                          <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
+                            <span style={{
+                              ...styles.badge,
+                              backgroundColor: item.role === 'super_admin' ? '#9b59b6' : item.role === 'admin' ? '#3498db' : '#27ae60',
+                              color: '#fff',
+                            }}>
+                              {item.role.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.total}</td>
+                          <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.mfaEnabled}</td>
+                          <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                            <span style={{
+                              ...styles.badge,
+                              backgroundColor: item.percentage >= 80 ? '#27ae60' : item.percentage >= 50 ? '#f39c12' : '#e74c3c',
+                              color: '#fff',
+                            }}>
+                              {item.percentage}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+              <p>No summary data available</p>
+              <button
+                style={{ ...styles.button, ...styles.primaryButton, marginTop: '15px' }}
+                onClick={fetchSummary}
+              >
+                Load Summary
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       {/* General Settings Tab */}
       {activeTab === 'general' && (

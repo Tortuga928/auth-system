@@ -20,6 +20,7 @@ const MFAEmailTemplate = require('../models/MFAEmailTemplate');
 const UserMFAPreferences = require('../models/UserMFAPreferences');
 const Email2FACode = require('../models/Email2FACode');
 const AuditLog = require('../models/AuditLog');
+const db = require('../db');
 
 /**
  * Get current MFA configuration
@@ -556,7 +557,233 @@ const applyMethodChange = async (req, res) => {
   }
 };
 
+
+/**
+ * Get MFA Summary with statistics
+ * GET /api/admin/mfa/summary
+ */
+const getMFASummary = async (req, res) => {
+  try {
+    // Get current configuration
+    const config = await MFAConfig.get();
+    const roleConfigs = await MFARoleConfig.getAll();
+    const templates = await MFAEmailTemplate.getAll();
+    const activeTemplate = templates.find(t => t.is_active);
+
+    // Get user statistics
+    const userStatsQuery = `
+      SELECT
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN is_active = true THEN 1 END) as active_users
+      FROM users
+    `;
+    const userStatsResult = await db.query(userStatsQuery);
+    const totalUsers = parseInt(userStatsResult.rows[0].total_users) || 0;
+    const activeUsers = parseInt(userStatsResult.rows[0].active_users) || 0;
+
+    // Get MFA enabled users (TOTP)
+    const mfaTotpQuery = `
+      SELECT COUNT(DISTINCT ms.user_id) as count
+      FROM mfa_secrets ms
+      JOIN users u ON ms.user_id = u.id
+      WHERE ms.enabled = true AND u.is_active = true
+    `;
+    const mfaTotpResult = await db.query(mfaTotpQuery);
+    const totpUsers = parseInt(mfaTotpResult.rows[0].count) || 0;
+
+    // Get Email 2FA enabled users
+    const mfaEmailQuery = `
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM user_mfa_preferences
+      WHERE email_2fa_enabled = true
+    `;
+    const mfaEmailResult = await db.query(mfaEmailQuery);
+    const email2faUsers = parseInt(mfaEmailResult.rows[0].count) || 0;
+
+    // Get users with both MFA types
+    const mfaBothQuery = `
+      SELECT COUNT(DISTINCT ms.user_id) as count
+      FROM mfa_secrets ms
+      JOIN user_mfa_preferences ump ON ms.user_id = ump.user_id
+      JOIN users u ON ms.user_id = u.id
+      WHERE ms.enabled = true AND ump.email_2fa_enabled = true AND u.is_active = true
+    `;
+    const mfaBothResult = await db.query(mfaBothQuery);
+    const bothMfaUsers = parseInt(mfaBothResult.rows[0].count) || 0;
+
+    // Calculate total MFA users (either TOTP or Email, not double-counting)
+    const totalMfaUsers = totpUsers + email2faUsers - bothMfaUsers;
+    const mfaAdoptionRate = activeUsers > 0 ? Math.round((totalMfaUsers / activeUsers) * 100) : 0;
+
+    // Get trusted devices count
+    const devicesQuery = `
+      SELECT COUNT(*) as count
+      FROM trusted_devices
+      WHERE trusted_until > NOW()
+    `;
+    const devicesResult = await db.query(devicesQuery);
+    const trustedDevices = parseInt(devicesResult.rows[0].count) || 0;
+
+    // Get backup codes statistics
+    const backupCodesQuery = `
+      SELECT
+        COUNT(*) as users_with_codes,
+        COUNT(CASE WHEN backup_codes IS NOT NULL AND backup_codes::text != '[]' THEN 1 END) as users_with_remaining
+      FROM mfa_secrets
+      WHERE enabled = true
+    `;
+    const backupCodesResult = await db.query(backupCodesQuery);
+    const usersWithBackupCodes = parseInt(backupCodesResult.rows[0].users_with_codes) || 0;
+
+    // Get activity statistics (last 7 days)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Current period activity
+    const activityCurrentQuery = `
+      SELECT
+        COUNT(CASE WHEN action IN ('MFA_CODE_SENT', 'MFA_SETUP_COMPLETE') THEN 1 END) as setups,
+        COUNT(CASE WHEN action = 'MFA_CODE_VERIFIED' THEN 1 END) as verifications,
+        COUNT(CASE WHEN action = 'MFA_CODE_FAILED' THEN 1 END) as failures
+      FROM audit_logs
+      WHERE created_at >= $1
+    `;
+    const activityCurrentResult = await db.query(activityCurrentQuery, [sevenDaysAgo]);
+    const currentSetups = parseInt(activityCurrentResult.rows[0].setups) || 0;
+    const currentVerifications = parseInt(activityCurrentResult.rows[0].verifications) || 0;
+    const currentFailures = parseInt(activityCurrentResult.rows[0].failures) || 0;
+
+    // Previous period activity (7-14 days ago)
+    const activityPreviousQuery = `
+      SELECT
+        COUNT(CASE WHEN action IN ('MFA_CODE_SENT', 'MFA_SETUP_COMPLETE') THEN 1 END) as setups,
+        COUNT(CASE WHEN action = 'MFA_CODE_VERIFIED' THEN 1 END) as verifications,
+        COUNT(CASE WHEN action = 'MFA_CODE_FAILED' THEN 1 END) as failures
+      FROM audit_logs
+      WHERE created_at >= $1 AND created_at < $2
+    `;
+    const activityPreviousResult = await db.query(activityPreviousQuery, [fourteenDaysAgo, sevenDaysAgo]);
+    const previousSetups = parseInt(activityPreviousResult.rows[0].setups) || 0;
+    const previousVerifications = parseInt(activityPreviousResult.rows[0].verifications) || 0;
+    const previousFailures = parseInt(activityPreviousResult.rows[0].failures) || 0;
+
+    // Calculate trends
+    const calculateTrend = (current, previous) => {
+      if (previous === 0) return current > 0 ? 'up' : 'same';
+      if (current > previous) return 'up';
+      if (current < previous) return 'down';
+      return 'same';
+    };
+
+    // Get role-based compliance
+    const complianceQuery = `
+      SELECT
+        u.role,
+        COUNT(*) as total,
+        COUNT(CASE WHEN ms.enabled = true OR ump.email_2fa_enabled = true THEN 1 END) as mfa_enabled
+      FROM users u
+      LEFT JOIN mfa_secrets ms ON u.id = ms.user_id AND ms.enabled = true
+      LEFT JOIN user_mfa_preferences ump ON u.id = ump.user_id AND ump.email_2fa_enabled = true
+      WHERE u.is_active = true
+      GROUP BY u.role
+    `;
+    const complianceResult = await db.query(complianceQuery);
+    const compliance = complianceResult.rows.map(row => ({
+      role: row.role,
+      total: parseInt(row.total) || 0,
+      mfaEnabled: parseInt(row.mfa_enabled) || 0,
+      percentage: parseInt(row.total) > 0 ? Math.round((parseInt(row.mfa_enabled) / parseInt(row.total)) * 100) : 0,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        // Current settings
+        settings: {
+          general: {
+            mfaMode: config.mfa_mode,
+            userControlMode: config.user_control_mode,
+          },
+          email2fa: {
+            codeFormat: config.code_format,
+            codeExpirationMinutes: config.code_expiration_minutes,
+            resendRateLimit: config.resend_rate_limit,
+            resendCooldownSeconds: config.resend_cooldown_seconds,
+            maxFailedAttempts: config.max_failed_attempts,
+            lockoutBehavior: config.lockout_behavior,
+            lockoutDurationMinutes: config.lockout_duration_minutes,
+            backupCodesEnabledTotp: config.backup_codes_enabled_totp,
+            backupCodesEnabledEmail: config.backup_codes_enabled_email,
+          },
+          deviceTrust: {
+            enabled: config.device_trust_enabled,
+            durationDays: config.device_trust_duration_days,
+            maxDevices: config.max_trusted_devices,
+          },
+          roles: {
+            enabled: config.role_based_mfa_enabled,
+            configs: roleConfigs,
+          },
+          templates: {
+            activeTemplate: activeTemplate ? {
+              id: activeTemplate.id,
+              name: activeTemplate.template_name,
+              subject: activeTemplate.subject_line,
+            } : null,
+            totalTemplates: templates.length,
+          },
+        },
+        // Statistics
+        statistics: {
+          users: {
+            total: activeUsers,
+            withMfa: totalMfaUsers,
+            adoptionRate: mfaAdoptionRate,
+          },
+          mfaByType: {
+            totp: totpUsers,
+            email2fa: email2faUsers,
+            both: bothMfaUsers,
+          },
+          trustedDevices: trustedDevices,
+          backupCodes: {
+            usersGenerated: usersWithBackupCodes,
+          },
+        },
+        // Activity (last 7 days)
+        activity: {
+          period: '7 days',
+          setups: {
+            count: currentSetups,
+            trend: calculateTrend(currentSetups, previousSetups),
+          },
+          verifications: {
+            count: currentVerifications,
+            trend: calculateTrend(currentVerifications, previousVerifications),
+          },
+          failures: {
+            count: currentFailures,
+            trend: calculateTrend(currentFailures, previousFailures),
+          },
+        },
+        // Role compliance
+        compliance: compliance,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting MFA summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get MFA summary',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
+  // Summary endpoint
+  getMFASummary,
+
   // Config endpoints
   getMFAConfig,
   updateMFAConfig,

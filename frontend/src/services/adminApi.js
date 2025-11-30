@@ -70,6 +70,9 @@ const adminApi = {
     return api.get(`/api/admin/audit-logs?${queryParams.toString()}`);
   },
 
+  // MFA Summary (Dashboard-style overview)
+  getMFASummary: () => api.get("/api/admin/mfa/summary"),
+
   // MFA Configuration (Phase 5)
   getMFAConfig: () => api.get('/api/admin/mfa/config'),
   updateMFAConfig: (data) => api.put('/api/admin/mfa/config', data),

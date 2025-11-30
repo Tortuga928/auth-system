@@ -14,6 +14,20 @@ const mfaAdminController = require('../controllers/mfaAdminController');
 router.use(authenticate);
 
 // ============================================
+// MFA SUMMARY
+// ============================================
+
+/**
+ * @route   GET /api/admin/mfa/summary
+ * @desc    Get MFA summary with all settings and statistics
+ * @access  Admin
+ *
+ * Returns current settings overview, user statistics, activity trends, and compliance data
+ */
+router.get('/summary', isAdmin, mfaAdminController.getMFASummary);
+
+
+// ============================================
 // SYSTEM-WIDE MFA CONFIGURATION
 // ============================================
 
