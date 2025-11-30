@@ -44,7 +44,8 @@ const adminApi = {
     if (params.page) queryParams.append('page', params.page);
     if (params.pageSize) queryParams.append('pageSize', params.pageSize);
     if (params.role) queryParams.append('role', params.role);
-    if (params.status) queryParams.append('status', params.status);
+    // Use !== undefined to allow empty string for 'All' status filter
+    if (params.status !== undefined) queryParams.append('status', params.status);
     if (params.search) queryParams.append('search', params.search);
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);

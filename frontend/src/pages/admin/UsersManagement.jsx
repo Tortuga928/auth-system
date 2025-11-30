@@ -382,8 +382,12 @@ Email: ${user.email}`;
                   <th style={styles.th} onClick={() => handleSort('email')}>
                     Email {sortConfig.sortBy === 'email' && (sortConfig.sortOrder === 'ASC' ? '↑' : '↓')}
                   </th>
-                  <th style={styles.th}>Role</th>
-                  <th style={styles.th}>Status</th>
+                  <th style={styles.th} onClick={() => handleSort('role')}>
+                    Role {sortConfig.sortBy === 'role' && (sortConfig.sortOrder === 'ASC' ? '↑' : '↓')}
+                  </th>
+                  <th style={styles.th} onClick={() => handleSort('is_active')}>
+                    Status {sortConfig.sortBy === 'is_active' && (sortConfig.sortOrder === 'ASC' ? '↑' : '↓')}
+                  </th>
                   <th style={styles.th} onClick={() => handleSort('created_at')}>
                     Created {sortConfig.sortBy === 'created_at' && (sortConfig.sortOrder === 'ASC' ? '↑' : '↓')}
                   </th>
