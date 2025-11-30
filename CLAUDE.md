@@ -26,7 +26,7 @@
 
 **IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
 
-**Current Active Work**: Send Test Email Enhancement - **COMPLETE**
+**Current Active Work**: Admin UI Filter/Sort Bug Fix - **COMPLETE**
 **Current Branch**: `staging`
 
 **Session Status**: [SESSION_CURRENT_STATUS.md](./SESSION_CURRENT_STATUS.md) - Current work and recovery
@@ -35,7 +35,14 @@
 **Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
 **Beta Environment**: https://auth-frontend-beta.onrender.com
 
-**Current Status** (November 30, 2025 - Send Test Email Enhancement):
+**Current Status** (November 30, 2025 - Admin UI Filter/Sort Bug Fix):
+- ✅ **Admin UI Filter/Sort Bug Fix** - **COMPLETE (commit 93feb97)**
+  - ✅ Issue 1: Role column header - added onClick handler
+  - ✅ Issue 2: Status column header - added onClick handler
+  - ✅ Issue 3: Status "All" filter - fixed empty string handling
+  - Files: UsersManagement.jsx, adminApi.js
+- ✅ **Backend Case-Insensitive Sort Fix** - **COMPLETE (commit a9751bb)**
+  - Fixed username/email/role sorting with LOWER() wrapper
 - ✅ **Send Test Email Enhancement** - **COMPLETE (commit e50bf5f)**
   - ✅ Backend: emailTestService.js, user endpoint (rate limited), admin endpoint
   - ✅ Frontend: TestEmailModal component, Dashboard button, Admin buttons
