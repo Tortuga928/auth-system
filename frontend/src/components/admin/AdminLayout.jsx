@@ -32,17 +32,14 @@ const AdminLayout = ({ children, title = 'Admin Panel' }) => {
   }, [navigate]);
 
   // Base menu items for all admins
+  // Note: MFA Settings and Settings are accessible via the header Settings menu (super_admin only)
   const baseMenuItems = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/admin/users', label: 'Users', icon: '👥' },
-    { path: '/admin/mfa-settings', label: 'MFA Settings', icon: '🔐' },
     { path: '/admin/audit-logs', label: 'Audit Logs', icon: '📋' },
   ];
 
-  // Add Settings link for super admins only
-  const menuItems = user?.role === 'super_admin'
-    ? [...baseMenuItems, { path: '/settings/home', label: 'Settings', icon: '⚙️' }]
-    : baseMenuItems;
+  const menuItems = baseMenuItems;
 
   const isActive = (path) => location.pathname === path;
 
