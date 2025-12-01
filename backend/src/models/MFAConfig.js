@@ -92,6 +92,10 @@ class MFAConfig {
       'test_mode',
       'logging_level',
       'notification_level',
+      // MFA Enforcement fields
+      'mfa_enforcement_enabled',
+      'enforcement_grace_period_days',
+      'enforcement_started_at',
     ];
 
     // Validate enum fields

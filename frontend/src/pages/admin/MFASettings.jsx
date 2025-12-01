@@ -164,6 +164,14 @@ const MFASettings = () => {
   const [pendingMode, setPendingMode] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // MFA Enforcement state
+  const [enforcementData, setEnforcementData] = useState(null);
+  const [enforcementLoading, setEnforcementLoading] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [gracePeriodDays, setGracePeriodDays] = useState(14);
+  const [showEnableConfirm, setShowEnableConfirm] = useState(false);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+
   // Fetch all MFA configuration data
   const fetchData = useCallback(async () => {
     try {
@@ -176,8 +184,8 @@ const MFASettings = () => {
         adminApi.getMFATemplates(),
       ]);
 
-      setConfig(configRes.data.data);
-      setRoleConfigs(roleRes.data.data || []);
+      setConfig(configRes.data.data.config || configRes.data.data);
+      setRoleConfigs(roleRes.data.data.roles || roleRes.data.data || []);
       // Backend returns { activeTemplate, templates } - extract the templates array
       setTemplates(templateRes.data.data?.templates || []);
     } catch (err) {
@@ -212,6 +220,99 @@ const MFASettings = () => {
     }
   }, [activeTab, fetchSummary]);
 
+  // Fetch enforcement data
+  const fetchEnforcementData = useCallback(async () => {
+    try {
+      setEnforcementLoading(true);
+      const [statsRes, usersRes] = await Promise.all([
+        adminApi.getEnforcementStats(),
+        adminApi.getPendingMFAUsers(),
+      ]);
+      setEnforcementData(statsRes.data.data);
+      setPendingUsers(usersRes.data.data?.users || []);
+      if (statsRes.data.data?.gracePeriodDays) {
+        setGracePeriodDays(statsRes.data.data.gracePeriodDays);
+      }
+    } catch (err) {
+      console.error('Failed to fetch enforcement data:', err);
+    } finally {
+      setEnforcementLoading(false);
+    }
+  }, []);
+
+  // Fetch enforcement data when tab changes to enforcement
+  useEffect(() => {
+    if (activeTab === 'enforcement') {
+      fetchEnforcementData();
+    }
+  }, [activeTab, fetchEnforcementData]);
+
+
+  // Enforcement handlers
+  const handleEnableEnforcement = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      await adminApi.enableEnforcement({ gracePeriodDays });
+      setSuccessMessage('MFA enforcement enabled successfully');
+      setShowEnableConfirm(false);
+      await fetchEnforcementData();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to enable enforcement:', err);
+      setError(err.response?.data?.error || 'Failed to enable enforcement');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisableEnforcement = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      await adminApi.disableEnforcement();
+      setSuccessMessage('MFA enforcement disabled successfully');
+      setShowDisableConfirm(false);
+      await fetchEnforcementData();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to disable enforcement:', err);
+      setError(err.response?.data?.error || 'Failed to disable enforcement');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdateGracePeriod = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      await adminApi.updateGracePeriod({ gracePeriodDays, applyToExisting: false });
+      setSuccessMessage('Grace period updated successfully');
+      await fetchEnforcementData();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to update grace period:', err);
+      setError(err.response?.data?.error || 'Failed to update grace period');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExtendUserGrace = async (userId, days) => {
+    try {
+      setSaving(true);
+      await adminApi.extendUserGracePeriod(userId, { additionalDays: days });
+      setSuccessMessage('Grace period extended successfully');
+      await fetchEnforcementData();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to extend grace period:', err);
+      setError(err.response?.data?.error || 'Failed to extend grace period');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Update global config
   const handleConfigUpdate = async (updates) => {
@@ -221,7 +322,8 @@ const MFASettings = () => {
       setSuccessMessage(null);
 
       const res = await adminApi.updateMFAConfig(updates);
-      setConfig(res.data.data);
+      // API returns { success, message, data: { config } }
+      setConfig(res.data.data.config || res.data.data);
       setSuccessMessage('MFA settings updated successfully');
 
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -244,7 +346,8 @@ const MFASettings = () => {
       setError(null);
 
       const res = await adminApi.resetMFAConfig();
-      setConfig(res.data.data);
+      // API returns { success, message, data: { config } }
+      setConfig(res.data.data.config || res.data.data);
       setSuccessMessage('MFA settings reset to defaults');
 
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -662,6 +765,12 @@ const MFASettings = () => {
         >
           Email Templates
         </button>
+        <button
+          style={{ ...styles.tab, ...(activeTab === 'enforcement' ? styles.tabActive : {}) }}
+          onClick={() => setActiveTab('enforcement')}
+        >
+          🔒 Enforcement
+        </button>
       </div>
 
 
@@ -776,7 +885,7 @@ const MFASettings = () => {
                 </h4>
                 <div>
                   <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Status</div>
-                  <div style={{ fontWeight: '500' }}>{summary.settings?.roles?.enabled ? 'Enabled' : 'Disabled'}</div>
+                  <div style={{ fontWeight: '500' }}>{config?.role_based_mfa_enabled ? 'Enabled' : 'Disabled'}</div>
                 </div>
 
                 <div style={styles.divider} />
@@ -1341,15 +1450,20 @@ const MFASettings = () => {
             </p>
 
             <div style={{ marginTop: '20px' }}>
-              <label style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  style={styles.checkbox}
-                  checked={config?.role_based_mfa_enabled || false}
-                  onChange={(e) => handleConfigUpdate({ role_based_mfa_enabled: e.target.checked })}
-                />
-                <strong>Enable role-based MFA requirements</strong>
-              </label>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Role-Based MFA Status</label>
+                <select
+                  style={{ ...styles.select, maxWidth: '300px' }}
+                  value={config?.role_based_mfa_enabled ? 'enabled' : 'disabled'}
+                  onChange={(e) => handleConfigUpdate({ role_based_mfa_enabled: e.target.value === 'enabled' })}
+                >
+                  <option value="disabled">Disabled - Use global MFA settings for all roles</option>
+                  <option value="enabled">Enabled - Configure MFA per role</option>
+                </select>
+                <p style={styles.helpText}>
+                  When enabled, you can configure different MFA requirements for each user role.
+                </p>
+              </div>
             </div>
 
             {config?.role_based_mfa_enabled && (
@@ -1459,6 +1573,302 @@ const MFASettings = () => {
               })}
             </div>
           </div>
+        </>
+      )}
+
+      {/* MFA Enforcement Tab */}
+      {activeTab === 'enforcement' && (
+        <>
+          {enforcementLoading ? (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+              <p>Loading enforcement data...</p>
+            </div>
+          ) : (
+            <>
+              {/* Enforcement Status Card */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>
+                  <span>🔒</span> MFA Enforcement Status
+                </h3>
+                <div style={{ padding: '20px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '20px',
+                    backgroundColor: enforcementData?.enforcementEnabled ? '#d4edda' : '#f8f9fa',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                  }}>
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', color: enforcementData?.enforcementEnabled ? '#155724' : '#333' }}>
+                        {enforcementData?.enforcementEnabled ? '✅ Enforcement Active' : '⚪ Enforcement Inactive'}
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
+                        {enforcementData?.enforcementEnabled
+                          ? `Started: ${enforcementData?.enforcementStartedAt ? new Date(enforcementData.enforcementStartedAt).toLocaleDateString() : 'N/A'}`
+                          : 'MFA is optional for all users'}
+                      </p>
+                    </div>
+                    {enforcementData?.enforcementEnabled ? (
+                      <button
+                        style={{
+                          ...styles.button,
+                          backgroundColor: '#dc3545',
+                          color: '#fff',
+                        }}
+                        onClick={() => setShowDisableConfirm(true)}
+                        disabled={saving}
+                      >
+                        Disable Enforcement
+                      </button>
+                    ) : (
+                      <button
+                        style={{
+                          ...styles.button,
+                          backgroundColor: '#28a745',
+                          color: '#fff',
+                        }}
+                        onClick={() => setShowEnableConfirm(true)}
+                        disabled={saving}
+                      >
+                        Enable Enforcement
+                      </button>
+                    )}
+                  </div>
+
+                  {enforcementData?.enforcementEnabled && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                      <div style={{ padding: '16px', backgroundColor: '#e3f2fd', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
+                          {enforcementData?.totalUsersRequiringSetup || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Users Pending MFA Setup</div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#fff3e0', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f57c00' }}>
+                          {enforcementData?.usersInGracePeriod || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>In Grace Period</div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#ffebee', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#c62828' }}>
+                          {enforcementData?.usersGracePeriodExpired || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Grace Period Expired</div>
+                      </div>
+                      <div style={{ padding: '16px', backgroundColor: '#e8f5e9', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2e7d32' }}>
+                          {enforcementData?.usersCompleted || 0}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Setup Completed</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Grace Period Settings Card */}
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>
+                  <span>⏱️</span> Grace Period Settings
+                </h3>
+                <div style={{ padding: '20px' }}>
+                  <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
+                    When enforcement is enabled, existing users are given a grace period to set up MFA.
+                    New users must set up MFA immediately after email verification.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <label style={{ fontWeight: '500' }}>Grace Period (days):</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={gracePeriodDays}
+                      onChange={(e) => setGracePeriodDays(Math.min(90, Math.max(1, parseInt(e.target.value) || 14)))}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        border: '1px solid #ddd',
+                        width: '80px',
+                      }}
+                    />
+                    <button
+                      style={{
+                        ...styles.button,
+                        backgroundColor: '#3498db',
+                        color: '#fff',
+                      }}
+                      onClick={handleUpdateGracePeriod}
+                      disabled={saving || !enforcementData?.enforcementEnabled}
+                    >
+                      Update Grace Period
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending Users Card */}
+              {pendingUsers.length > 0 && (
+                <div style={styles.card}>
+                  <h3 style={styles.cardTitle}>
+                    <span>👥</span> Users Pending MFA Setup ({pendingUsers.length})
+                  </h3>
+                  <div style={{ padding: '20px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid #ddd' }}>
+                          <th style={{ textAlign: 'left', padding: '12px 8px' }}>User</th>
+                          <th style={{ textAlign: 'left', padding: '12px 8px' }}>Role</th>
+                          <th style={{ textAlign: 'left', padding: '12px 8px' }}>Status</th>
+                          <th style={{ textAlign: 'left', padding: '12px 8px' }}>Days Left</th>
+                          <th style={{ textAlign: 'left', padding: '12px 8px' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingUsers.slice(0, 10).map((user) => (
+                          <tr key={user.id} style={{ borderBottom: '1px solid #eee' }}>
+                            <td style={{ padding: '12px 8px' }}>
+                              <div>{user.username}</div>
+                              <div style={{ fontSize: '12px', color: '#666' }}>{user.email}</div>
+                            </td>
+                            <td style={{ padding: '12px 8px', textTransform: 'capitalize' }}>{user.role}</td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                backgroundColor: user.graceStatus === 'in_grace_period' ? '#fff3e0' :
+                                                 user.graceStatus === 'grace_period_expired' ? '#ffebee' : '#f5f5f5',
+                                color: user.graceStatus === 'in_grace_period' ? '#f57c00' :
+                                       user.graceStatus === 'grace_period_expired' ? '#c62828' : '#666',
+                              }}>
+                                {user.graceStatus === 'in_grace_period' ? 'In Grace Period' :
+                                 user.graceStatus === 'grace_period_expired' ? 'Expired' : 'Pending'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              {user.daysRemaining > 0 ? `${user.daysRemaining} days` : 'Expired'}
+                            </td>
+                            <td style={{ padding: '12px 8px' }}>
+                              <button
+                                style={{
+                                  ...styles.button,
+                                  fontSize: '12px',
+                                  padding: '4px 8px',
+                                  backgroundColor: '#3498db',
+                                  color: '#fff',
+                                }}
+                                onClick={() => handleExtendUserGrace(user.id, 7)}
+                                disabled={saving}
+                                title="Add 7 days to grace period"
+                              >
+                                +7 Days
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {pendingUsers.length > 10 && (
+                      <div style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                        Showing 10 of {pendingUsers.length} users
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Enable Enforcement Confirmation Dialog */}
+          {showEnableConfirm && (
+            <div style={styles.modalOverlay}>
+              <div style={styles.modalContent}>
+                <div style={styles.modalHeader}>
+                  <h3 style={styles.modalTitle}>Enable MFA Enforcement</h3>
+                </div>
+                <div style={styles.modalBody}>
+                  <p style={{ marginBottom: '16px' }}>
+                    <strong>This will require all users to set up MFA.</strong>
+                  </p>
+                  <ul style={{ paddingLeft: '20px', marginBottom: '16px' }}>
+                    <li>Existing users will have {gracePeriodDays} days to set up MFA</li>
+                    <li>New users must set up MFA immediately after registration</li>
+                    <li>Users cannot access the application without MFA after their grace period</li>
+                  </ul>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <label>Grace Period:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={gracePeriodDays}
+                      onChange={(e) => setGracePeriodDays(Math.min(90, Math.max(1, parseInt(e.target.value) || 14)))}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                        border: '1px solid #ddd',
+                        width: '80px',
+                      }}
+                    />
+                    <span>days</span>
+                  </div>
+                </div>
+                <div style={styles.modalFooter}>
+                  <button
+                    style={{ ...styles.button, backgroundColor: '#6c757d', color: '#fff' }}
+                    onClick={() => setShowEnableConfirm(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{ ...styles.button, backgroundColor: '#28a745', color: '#fff' }}
+                    onClick={handleEnableEnforcement}
+                    disabled={saving}
+                  >
+                    {saving ? 'Enabling...' : 'Enable Enforcement'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Disable Enforcement Confirmation Dialog */}
+          {showDisableConfirm && (
+            <div style={styles.modalOverlay}>
+              <div style={styles.modalContent}>
+                <div style={styles.modalHeader}>
+                  <h3 style={styles.modalTitle}>Disable MFA Enforcement</h3>
+                </div>
+                <div style={styles.modalBody}>
+                  <p style={{ marginBottom: '16px' }}>
+                    <strong>Are you sure you want to disable MFA enforcement?</strong>
+                  </p>
+                  <ul style={{ paddingLeft: '20px', marginBottom: '16px' }}>
+                    <li>Users will no longer be required to set up MFA</li>
+                    <li>Existing MFA setups will remain active</li>
+                    <li>Users can still voluntarily use MFA if configured</li>
+                  </ul>
+                </div>
+                <div style={styles.modalFooter}>
+                  <button
+                    style={{ ...styles.button, backgroundColor: '#6c757d', color: '#fff' }}
+                    onClick={() => setShowDisableConfirm(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{ ...styles.button, backgroundColor: '#dc3545', color: '#fff' }}
+                    onClick={handleDisableEnforcement}
+                    disabled={saving}
+                  >
+                    {saving ? 'Disabling...' : 'Disable Enforcement'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 

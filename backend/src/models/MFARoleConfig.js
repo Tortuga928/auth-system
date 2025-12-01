@@ -96,6 +96,8 @@ class MFARoleConfig {
       'max_failed_attempts',
       'lockout_behavior',
       'lockout_duration_minutes',
+      // MFA Enforcement field
+      'exempt_from_mfa',
     ];
 
     // Validate allowed_methods if provided
