@@ -26,8 +26,8 @@
 
 **IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
 
-**Current Active Work**: MFA Summary Tab Enhancement Complete - **READY FOR BETA DEPLOYMENT**
-**Current Branch**: `staging`
+**Current Active Work**: MFA Setup Enforcement Feature - **BUG FIXES COMPLETE, TESTING IN PROGRESS**
+**Current Branch**: `staging` (merged from feature/mfa-setup-enforcement)
 
 **Session Status**: [SESSION_CURRENT_STATUS.md](./SESSION_CURRENT_STATUS.md) - Current work and recovery
 **Enhancement Plan**: [docs/SEND_TEST_EMAIL_ENHANCEMENT.md](./docs/SEND_TEST_EMAIL_ENHANCEMENT.md) - Feature specification
@@ -35,55 +35,104 @@
 **Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
 **Beta Environment**: https://auth-frontend-beta.onrender.com
 
-**Current Status** (November 30, 2025 - MFA Summary Tab Enhancement Complete):
+**Current Status** (December 1, 2025 - MFA Enforcement Feature Bug Fixes COMPLETE):
+
+### ✅ Session 7 Bug Fixes - December 1, 2025 (COMPLETE)
+
+**Issues Fixed:**
+1. **"db is not a function"** - Rewrote mfaEnforcementService.js from Knex to raw SQL
+2. **"No valid fields to update"** - Added enforcement fields to MFAConfig.js allowedFields
+3. **Role exemption field missing** - Added exempt_from_mfa to MFARoleConfig.js
+4. **Role Settings checkbox** - Changed to dropdown with Enabled/Disabled options
+5. **Summary/Settings mismatch** - Fixed to use config state instead of stale API data
+6. **Dropdown not saving** - Fixed API response parsing (nested config object)
+7. **roleConfigs.find error** - Fixed API response parsing (nested roles array)
+
+**Commit**: f6c9ad0 - fix(mfa): fix MFA Settings API response parsing and UI bugs
+**Test Results**: 83% pass rate (24/29 tests)
+
+---
+
+### 🔄 MFA Setup Enforcement Feature - **TESTING IN PROGRESS (Phase 11)**
+
+**Feature**: Mandatory MFA setup enforcement for all users with:
+- New users must set up MFA immediately after email verification
+- Existing users receive configurable grace period (1-90 days)
+- Role-based exemptions
+- Admin controls for enabling/disabling enforcement
+
+**Implementation Status: 10/11 Phases Complete**
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Database Schema Updates | ✅ Complete |
+| 2 | Backend - MFA Enforcement Service | ✅ Complete |
+| 3 | Backend - Auth Controller Updates | ✅ Complete |
+| 4 | Backend - MFA Setup Endpoint Updates | ✅ Complete |
+| 5 | Backend - Admin MFA Config Updates | ✅ Complete |
+| 6 | Frontend - Registration Success Modal | ✅ Complete |
+| 7 | Frontend - Login Page Updates | ✅ Complete |
+| 8 | Frontend - MFA Required Setup Page | ✅ Complete |
+| 9 | Frontend - Grace Period Warning Banner | ✅ Complete |
+| 10 | Frontend - MFA Settings Admin UI Updates | ✅ Complete |
+| 11 | Testing & Verification | 🔄 **IN PROGRESS** |
+
+**Files Created:**
+- `backend/src/db/migrations/20251130000001_add_mfa_enforcement.js`
+- `backend/src/services/mfaEnforcementService.js`
+- `frontend/src/pages/MFARequiredSetupPage.js`
+- `frontend/src/components/GracePeriodWarningBanner.js`
+
+**Files Modified:**
+- `backend/src/controllers/authController.js`
+- `backend/src/controllers/mfaController.js`
+- `backend/src/controllers/mfaAdminController.js`
+- `backend/src/routes/mfa.js`
+- `backend/src/routes/mfaAdmin.js`
+- `frontend/src/pages/RegisterPage.js`
+- `frontend/src/pages/LoginPage.js`
+- `frontend/src/pages/DashboardPage.js`
+- `frontend/src/pages/admin/MFASettings.jsx`
+- `frontend/src/services/api.js`
+- `frontend/src/services/adminApi.js`
+- `frontend/src/App.js`
+
+**To Resume - Phase 11 Testing:**
+```bash
+cd /c/Users/MSTor/Projects/auth-system
+git status
+docker-compose up -d
+docker-compose exec backend npm run migrate
+```
+
+**Test Steps:**
+1. Login as super admin (testsuperadmin@example.com / Test123!)
+2. Go to Admin > MFA Settings > Enforcement tab
+3. Click "Enable Enforcement" with desired grace period
+4. Register a new user → verify email → login → should redirect to MFA setup
+5. Login as existing user without MFA → should see grace period banner
+
+---
+
+### Previous Completed Work (November 30, 2025)
 - ✅ **MFA Summary Tab Enhancement** - **COMPLETE (commit d48eb0f)**
-  - ✅ Added new "MFA Summary" tab as first tab in MFA Settings page
-  - ✅ Backend: GET /api/admin/mfa/summary endpoint with comprehensive stats
-  - ✅ Frontend: Dashboard-style overview with settings, statistics, activity, compliance
-  - ✅ Files: mfaAdminController.js, mfaAdmin.js, adminApi.js, MFASettings.jsx
 - ✅ **Email Templates Tab Bug Fix** - **COMPLETE (commit 0c4543f)**
-  - ✅ Fixed `templates.find is not a function` error
-  - ✅ Fixed CSS border property conflict warning
 - ✅ **Settings Sidebar Bug Fix** - **COMPLETE (commit d3dfe9a)**
-  - ✅ Added MFA Settings menu item to Settings sidebar navigation
-  - ✅ File: frontend/src/components/settings/SettingsLayout.jsx
 - ✅ **MFA Settings Comprehensive Bug Fix** - **COMPLETE (commit 5bcfe57)**
-  - ✅ Fixed audit_logs.admin_email NOT NULL constraint (13 test failures)
-  - ✅ Added 5 new MFA routes (trusted-devices, preferences)
-  - ✅ Created comprehensive test script (31 tests, 100% pass rate)
-  - Files: mfaAdminController.js, email2FAController.js, email2fa.js
 - ✅ **Admin UI Filter/Sort Bug Fix** - **COMPLETE (commit 93feb97)**
-  - ✅ Issue 1: Role column header - added onClick handler
-  - ✅ Issue 2: Status column header - added onClick handler
-  - ✅ Issue 3: Status "All" filter - fixed empty string handling
-  - Files: UsersManagement.jsx, adminApi.js
 - ✅ **Backend Case-Insensitive Sort Fix** - **COMPLETE (commit a9751bb)**
-  - Fixed username/email/role sorting with LOWER() wrapper
 - ✅ **Send Test Email Enhancement** - **COMPLETE (commit e50bf5f)**
-  - ✅ Backend: emailTestService.js, user endpoint (rate limited), admin endpoint
-  - ✅ Frontend: TestEmailModal component, Dashboard button, Admin buttons
-  - ✅ Rate limiting: 30s cooldown + 25/day for users, no limits for admins
-  - ✅ UI tested and working
 - ✅ **Amazon SES Email Configuration** - **COMPLETE**
-  - ✅ SES configured with us-east-1 region
-  - ✅ Sender identity verified: noreply@nleos.com
-  - ✅ Recipient identity verified: MSTortuga7@outlook.com (sandbox mode)
-  - ✅ SMTP credentials configured in docker-compose.yml and .env
-  - ✅ Production access requested (under AWS review)
-  - ✅ Test emails sending successfully
 - ✅ **Email Verification Bug Fix** - **COMPLETE (commit 18e39ed)**
-  - ✅ Created EmailVerificationPage.js component
-  - ✅ Added /verify-email/:token route to App.js
-  - ✅ Added verifyEmail method to api.js
-  - ✅ Pushed to staging branch
 - ✅ **Email 2FA Enhancement Feature** - **COMPLETE (6/6 phases - 100%)**
 - ✅ **Phase 7-11 Complete** - All previous phases deployed to beta
 - ✅ **Archive User Feature** - COMPLETE (22/22 tests passed)
 
-**Next Steps** (When Ready):
-1. **Deploy to Beta** - Merge staging → beta, push to trigger auto-deploy
-2. **Test on Beta** - Verify Send Test Email works with real SES emails
-3. **Production Deploy** - After beta testing and SES production approval
+**Next Steps** (After MFA Enforcement Testing):
+1. **Test MFA Enforcement** - Run Phase 11 testing steps above
+2. **Commit all changes** - After testing passes
+3. **Merge to staging** - Prepare for beta deployment
+4. **Deploy to Beta** - Test with real environment
 
 **Email Configuration** (Amazon SES - us-east-1):
 ```
@@ -1231,5 +1280,5 @@ When the user says they want to start a new phase or user story from PROJECT_ROA
 ---
 
 *Last Updated: November 30, 2025*
-*Version: 2.5*
-*Current Status: All Bug Fixes Complete - Ready for Beta Deployment*
+*Version: 2.6*
+*Current Status: MFA Enforcement Feature - Implementation Complete, Testing Phase*
