@@ -1,63 +1,68 @@
 # Current Session Status - December 1, 2025
 
-**Last Updated**: December 1, 2025 - MFA Settings Bug Fixes COMPLETE
-**Working On**: MFA Setup Enforcement Feature - Phase 11 (Testing) - Bug fixes complete
-**Current Branch**: `staging` (merged from feature/mfa-setup-enforcement)
-**Status**: **BUG FIXES COMPLETE - READY FOR FURTHER TESTING**
+**Last Updated**: December 1, 2025 - Role MFA Dropdowns & Summary Table COMPLETE
+**Working On**: MFA Setup Enforcement Feature - Phase 11 (Testing)
+**Current Branch**: `staging`
+**Status**: **ROLE MFA UI ENHANCEMENTS COMPLETE - READY FOR TESTING**
 
 ---
 
-## ✅ Session 7 Work - December 1, 2025
+## ✅ Session 7 Work - December 1, 2025 (Continued)
 
-### MFA Settings Bug Fixes (COMPLETE)
+### Role MFA Dropdowns & Summary Table (COMPLETE)
+
+**User Request:** Fix non-functional Role MFA checkboxes, change to dropdowns, add role details to MFA Summary
+
+**Implementation:**
+
+#### Phase 1: Role Settings Tab - Dropdowns
+- Replaced non-functional checkboxes with Enabled/Disabled dropdowns
+- Added pending changes tracking with yellow highlight for modified rows
+- Added "Save All Changes" button (only visible when changes exist)
+- Added confirmation dialog before saving with list of changes
+- Added Cancel button to discard pending changes
+
+#### Phase 2: MFA Summary Tab - Role Details Table
+- Added role details table (only shows when Role-Based MFA is enabled)
+- Table columns: Role, MFA Status, Methods, Grace Period, Users
+- Uses compliance data from API for user counts per role
+- Styled badges for role names and status indicators
+
+#### Phase 3: Backend Verification
+- No changes needed - existing API already supports mfa_required updates
+
+**Commit**: 2ba2a0d - feat(mfa): add Role MFA dropdowns and Summary table
+
+**Files Modified:**
+- `frontend/src/pages/admin/MFASettings.jsx`
+  - Added state: `pendingRoleChanges`, `showRoleSaveConfirm`
+  - Added handlers: `handleRoleMfaChange`, `getEffectiveRoleConfig`, `handleSaveRoleChanges`, `handleCancelRoleChanges`
+  - Updated Role Settings table with dropdowns and save button
+  - Added Role Details table to MFA Summary tab
+
+---
+
+### Earlier Session 7 Work - MFA Settings Bug Fixes (COMPLETE)
 
 **Issues Resolved:**
+1. **"db is not a function"** - Rewrote mfaEnforcementService.js from Knex to raw SQL
+2. **"No valid fields to update"** - Added enforcement fields to MFAConfig.js
+3. **Role exemption field missing** - Added exempt_from_mfa to MFARoleConfig.js
+4. **Role Settings checkbox** - Changed to dropdown (superseded by latest work)
+5. **Summary/Settings mismatch** - Fixed to use config state
+6. **Dropdown not saving** - Fixed API response parsing (nested config)
+7. **roleConfigs.find error** - Fixed API response parsing (nested roles)
 
-1. **"db is not a function" error** - mfaEnforcementService.js used Knex syntax but project uses raw SQL
-   - Rewrote entire service from `db('tablename').where()` to `db.query('SELECT...')`
-
-2. **"No valid fields to update" error** - MFAConfig model missing enforcement fields
-   - Added `mfa_enforcement_enabled`, `enforcement_grace_period_days`, `enforcement_started_at` to allowedFields
-
-3. **Role exemption field missing** - MFARoleConfig model missing exempt_from_mfa
-   - Added `exempt_from_mfa` to allowedFields
-
-4. **Role Settings checkbox couldn't be disabled** - Only had checkbox, not toggle
-   - Changed to dropdown with "Enabled" and "Disabled" options
-
-5. **MFA Summary and Role Settings showing different values**
-   - Fixed Summary to use `config?.role_based_mfa_enabled` instead of stale API data
-
-6. **Role-Based MFA dropdown not saving "Enabled"** - API response parsing issue
-   - API returns `{ data: { config } }` but code expected `{ data: config }`
-   - Fixed `setConfig(res.data.data)` to `setConfig(res.data.data.config || res.data.data)`
-
-7. **roleConfigs.find is not a function error** - API response parsing issue
-   - API returns `{ data: { roles } }` but code expected array
-   - Fixed `setRoleConfigs(res.data.data)` to `setRoleConfigs(res.data.data.roles || res.data.data || [])`
-
-**Test Results:**
-- MFA enforcement tests improved from 62% to 83% pass rate (24/29 tests)
-- All UI bugs resolved
-- Role-Based MFA dropdown now persists correctly
-
-**Commit**: f6c9ad0 - fix(mfa): fix MFA Settings API response parsing and UI bugs
-
-### Files Modified
-
-**Backend:**
-- `backend/src/models/MFAConfig.js` - Added enforcement fields to allowedFields
-- `backend/src/models/MFARoleConfig.js` - Added exempt_from_mfa to allowedFields
-- `backend/src/services/mfaEnforcementService.js` - Complete rewrite from Knex to raw SQL
-
-**Frontend:**
-- `frontend/src/pages/admin/MFASettings.jsx` - Fixed API response parsing, changed checkbox to dropdown
+**Commits:**
+- f6c9ad0 - fix(mfa): fix MFA Settings API response parsing and UI bugs
+- 9daa98d - docs: update session status for December 1 bug fixes
+- 2ba2a0d - feat(mfa): add Role MFA dropdowns and Summary table
 
 ---
 
 ## 🔄 MFA Setup Enforcement Feature - IN PROGRESS
 
-### Implementation Status: 10/11 Phases Complete + Bug Fixes
+### Implementation Status: 10/11 Phases Complete + UI Enhancements
 
 | Phase | Description | Status |
 |-------|-------------|--------|
@@ -70,7 +75,7 @@
 | 7 | Frontend - Login Page Updates | ✅ Complete |
 | 8 | Frontend - MFA Required Setup Page | ✅ Complete |
 | 9 | Frontend - Grace Period Warning Banner | ✅ Complete |
-| 10 | Frontend - MFA Settings Admin UI Updates | ✅ Complete (bug fixes applied) |
+| 10 | Frontend - MFA Settings Admin UI Updates | ✅ Complete (+ Role dropdowns & Summary table) |
 | 11 | Testing & Verification | 🔄 In Progress (83% pass rate) |
 
 ---
@@ -80,19 +85,19 @@
 ### Quick Start
 ```bash
 cd /c/Users/MSTor/Projects/auth-system
-git status
-git branch  # Should be on staging
+git status           # Should be on staging
+git log --oneline -5 # Latest commit: 2ba2a0d feat(mfa): add Role MFA dropdowns
 docker-compose up -d
-docker ps  # Verify all containers running
-docker-compose exec backend npm run migrate  # Run any pending migrations
+docker-compose exec backend npm run migrate
 ```
 
-### Test MFA Enforcement Feature
+### Test the New Features
 1. Login as super admin (testsuperadmin@example.com / Test123!)
-2. Go to Admin > MFA Settings > Enforcement tab
-3. Click "Enable Enforcement" with desired grace period
-4. Register a new user → verify email → login → should redirect to MFA setup
-5. Login as existing user without MFA → should see grace period banner
+2. Go to Admin > MFA Settings > Role Settings tab
+3. Enable "Role-Based MFA Status" dropdown
+4. Change individual role MFA dropdowns (should highlight yellow)
+5. Click "Save All Changes" and confirm
+6. Go to MFA Summary tab - role details table should appear
 
 ### Run MFA Tests
 ```bash
@@ -112,4 +117,4 @@ Expected: 83% pass rate (24/29 tests)
 
 ---
 
-*Session 7 - December 1, 2025*
+*Session 7 (continued) - December 1, 2025*
