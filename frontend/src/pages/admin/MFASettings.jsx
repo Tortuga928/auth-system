@@ -172,6 +172,10 @@ const MFASettings = () => {
   const [showEnableConfirm, setShowEnableConfirm] = useState(false);
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
 
+  // Role MFA changes state
+  const [pendingRoleChanges, setPendingRoleChanges] = useState({});
+  const [showRoleSaveConfirm, setShowRoleSaveConfirm] = useState(false);
+
   // Fetch all MFA configuration data
   const fetchData = useCallback(async () => {
     try {
@@ -396,6 +400,62 @@ const MFASettings = () => {
         console.error('Failed to copy:', err);
       }
     }
+  };
+
+
+  // Handle role MFA required change (local state only)
+  const handleRoleMfaChange = (role, enabled) => {
+    setPendingRoleChanges(prev => ({
+      ...prev,
+      [role]: { ...prev[role], mfa_required: enabled }
+    }));
+  };
+
+  // Get effective role config (pending changes or original)
+  const getEffectiveRoleConfig = (role) => {
+    const original = roleConfigs.find(r => r.role === role) || {};
+    const pending = pendingRoleChanges[role] || {};
+    return { ...original, ...pending };
+  };
+
+  // Check if there are unsaved role changes
+  const hasRoleChanges = Object.keys(pendingRoleChanges).length > 0;
+
+  // Count changed roles
+  const changedRolesCount = Object.keys(pendingRoleChanges).length;
+
+  // Save all role changes
+  const handleSaveRoleChanges = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+
+      // Save each changed role
+      for (const [role, changes] of Object.entries(pendingRoleChanges)) {
+        await adminApi.updateMFARoleConfig(role, changes);
+      }
+
+      // Refresh role configs
+      const roleRes = await adminApi.getMFARoleConfigs();
+      setRoleConfigs(roleRes.data.data.roles || roleRes.data.data || []);
+
+      // Clear pending changes
+      setPendingRoleChanges({});
+      setShowRoleSaveConfirm(false);
+      setSuccessMessage('MFA requirements updated for ' + changedRolesCount + ' role(s)');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      console.error('Failed to save role changes:', err);
+      setError(err.response?.data?.message || 'Failed to save role changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Cancel role changes
+  const handleCancelRoleChanges = () => {
+    setPendingRoleChanges({});
+    setShowRoleSaveConfirm(false);
   };
 
   // Styles
@@ -887,6 +947,69 @@ const MFASettings = () => {
                   <div style={{ fontSize: '12px', color: '#7f8c8d' }}>Status</div>
                   <div style={{ fontWeight: '500' }}>{config?.role_based_mfa_enabled ? 'Enabled' : 'Disabled'}</div>
                 </div>
+
+
+                {/* Role Details Table - Only show when enabled */}
+                {config?.role_based_mfa_enabled && (
+                  <div style={{ overflowX: 'auto', marginTop: '15px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f8f9fa' }}>
+                          <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Role</th>
+                          <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>MFA Status</th>
+                          <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Methods</th>
+                          <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Grace Period</th>
+                          <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Users</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {['user', 'admin', 'super_admin'].map((role) => {
+                          const roleConfig = (summary.settings?.roles?.configs || []).find(r => r.role === role) || {};
+                          const compliance = (summary.compliance || []).find(c => c.role === role) || {};
+                          return (
+                            <tr key={role}>
+                              <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '500',
+                                  backgroundColor: role === 'super_admin' ? '#9b59b6' : role === 'admin' ? '#3498db' : '#27ae60',
+                                  color: '#fff',
+                                }}>
+                                  {role.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  backgroundColor: roleConfig.mfa_required ? '#d4edda' : '#f8d7da',
+                                  color: roleConfig.mfa_required ? '#155724' : '#721c24',
+                                }}>
+                                  {roleConfig.mfa_required ? 'Enabled' : 'Disabled'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6' }}>
+                                {(roleConfig.allowed_methods || ['totp', 'email']).join(', ')}
+                              </td>
+                              <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
+                                {roleConfig.grace_period_days || 0} days
+                              </td>
+                              <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
+                                <span style={{ fontWeight: '500' }}>{compliance.total || 0}</span>
+                                <span style={{ color: '#7f8c8d', fontSize: '11px' }}> ({compliance.mfaEnabled || 0} with MFA)</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 <div style={styles.divider} />
 
@@ -1481,9 +1604,10 @@ const MFASettings = () => {
                     </thead>
                     <tbody>
                       {['user', 'admin', 'super_admin'].map((role) => {
-                        const roleConfig = roleConfigs.find(r => r.role === role) || {};
+                        const roleConfig = getEffectiveRoleConfig(role);
+                        const hasChange = pendingRoleChanges[role] !== undefined;
                         return (
-                          <tr key={role}>
+                          <tr key={role} style={{ backgroundColor: hasChange ? '#fff8e1' : 'transparent' }}>
                             <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                               <span style={{
                                 ...styles.badge,
@@ -1494,12 +1618,14 @@ const MFASettings = () => {
                               </span>
                             </td>
                             <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
-                              <input
-                                type="checkbox"
-                                checked={roleConfig.mfa_required || false}
-                                onChange={() => {/* TODO: Implement role config update */}}
-                                style={{ width: '20px', height: '20px' }}
-                              />
+                              <select
+                                style={{ ...styles.select, maxWidth: '150px', margin: '0 auto' }}
+                                value={roleConfig.mfa_required ? 'enabled' : 'disabled'}
+                                onChange={(e) => handleRoleMfaChange(role, e.target.value === 'enabled')}
+                              >
+                                <option value="disabled">Disabled</option>
+                                <option value="enabled">Enabled</option>
+                              </select>
                             </td>
                             <td style={{ padding: '12px', borderBottom: '1px solid #dee2e6' }}>
                               {(roleConfig.allowed_methods || ['totp', 'email']).join(', ')}
@@ -1513,8 +1639,30 @@ const MFASettings = () => {
                     </tbody>
                   </table>
                 </div>
+                {/* Save/Cancel buttons */}
+                {hasRoleChanges && (
+                  <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      style={{ ...styles.button, ...styles.secondaryButton }}
+                      onClick={handleCancelRoleChanges}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      style={{ ...styles.button, ...styles.primaryButton }}
+                      onClick={() => setShowRoleSaveConfirm(true)}
+                      disabled={saving}
+                    >
+                      {saving ? 'Saving...' : 'Save All Changes'}
+                    </button>
+                  </div>
+                )}
+
                 <p style={{ ...styles.helpText, marginTop: '10px' }}>
-                  Click on a role to configure detailed settings.
+                  {hasRoleChanges 
+                    ? 'You have unsaved changes. Click "Save All Changes" to apply them.'
+                    : 'Configure MFA requirements for each role using the dropdowns above.'}
                 </p>
               </>
             )}
@@ -1870,6 +2018,52 @@ const MFASettings = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Role Save Confirmation Dialog */}
+      {showRoleSaveConfirm && (
+        <div style={styles.modalOverlay} onClick={() => setShowRoleSaveConfirm(false)}>
+          <div style={{ ...styles.modalContent, maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span style={{ fontSize: '24px' }}>👥</span>
+              <h3 style={styles.modalTitle}>Confirm Role MFA Changes</h3>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ marginBottom: '15px' }}>
+                You are about to update MFA requirements for <strong>{changedRolesCount} role(s)</strong>.
+              </p>
+              <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                <div style={{ fontWeight: '500', marginBottom: '10px' }}>Changes:</div>
+                <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                  {Object.entries(pendingRoleChanges).map(([role, changes]) => (
+                    <li key={role}>
+                      <strong>{role.replace('_', ' ').toUpperCase()}</strong>: MFA {changes.mfa_required ? 'Enabled' : 'Disabled'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p style={{ color: '#856404', backgroundColor: '#fff3cd', padding: '10px', borderRadius: '4px', fontSize: '13px' }}>
+                ⚠️ These changes will take effect immediately for all users with the affected roles.
+              </p>
+            </div>
+            <div style={styles.modalFooter}>
+              <button
+                style={{ ...styles.button, ...styles.secondaryButton }}
+                onClick={() => setShowRoleSaveConfirm(false)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                style={{ ...styles.button, ...styles.primaryButton }}
+                onClick={handleSaveRoleChanges}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : 'Confirm Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Saving indicator */}
