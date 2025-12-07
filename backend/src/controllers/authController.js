@@ -24,6 +24,10 @@ const TrustedDevice = require('../models/TrustedDevice');
 const email2FAService = require('../services/email2FAService');
 const mfaEmailSender = require('../services/mfaEmailSender');
 
+// MFA Enforcement imports
+const mfaEnforcementService = require('../services/mfaEnforcementService');
+const templateEmailService = require('../services/templateEmailService');
+
 /**
  * Register a new user
  *
@@ -118,7 +122,7 @@ const register = async (req, res, next) => {
 
     if (verificationSettings.enabled) {
       // Send email without waiting (async, non-blocking)
-      dynamicEmailService
+      templateEmailService
         .sendVerificationEmail(user.email, user.username, verificationUrl)
         .then(() => {
           console.log(`✅ Verification email sent to ${user.email}`);
@@ -131,17 +135,60 @@ const register = async (req, res, next) => {
       console.log('📧 Email verification disabled - skipping verification email');
     }
 
-    // Generate tokens
-    const tokens = generateTokenPair({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // Send welcome email (non-blocking)
+    templateEmailService
+      .sendWelcomeEmail(user.email, user.username)
+      .then(() => {
+        console.log(`✅ Welcome email sent to ${user.email}`);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to send welcome email:', error.message);
+      });
+
+    // Check if MFA enforcement is enabled
+    const mfaConfig = await MFAConfig.get();
+    const mfaEnforcementEnabled = mfaConfig.mfa_enforcement_enabled && mfaConfig.mfa_mode !== 'disabled';
+
+    // If MFA enforcement is enabled, mark new user as requiring MFA setup
+    if (mfaEnforcementEnabled) {
+      await mfaEnforcementService.markUserRequiresMFASetup(user.id);
+    }
 
     // Return success response with appropriate message
     const successMessage = verificationSettings.enabled
       ? 'User registered successfully. Please check your email to verify your account.'
       : 'User registered successfully.';
+
+    // If email verification is enabled, don't issue tokens yet - user must verify email first
+    if (verificationSettings.enabled) {
+      return res.status(201).json({
+        success: true,
+        message: successMessage,
+        data: {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            email_verified: false,
+          },
+          emailVerificationRequired: true,
+          mfaSetupRequired: mfaEnforcementEnabled,
+          emailVerification: {
+            enabled: verificationSettings.enabled,
+            enforced: verificationSettings.enforced,
+            gracePeriodDays: verificationSettings.gracePeriodDays,
+          },
+        },
+      });
+    }
+
+    // Email verification not required - generate tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     res.status(201).json({
       success: true,
@@ -158,6 +205,7 @@ const register = async (req, res, next) => {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
         },
+        mfaSetupRequired: mfaEnforcementEnabled,
         emailVerification: {
           enabled: verificationSettings.enabled,
           enforced: verificationSettings.enforced,
@@ -405,13 +453,13 @@ const login = async (req, res, next) => {
             { ipAddress: sessionMetadata.ip_address, userAgent: sessionMetadata.user_agent }
           );
 
-          // Send the code via email
-          await mfaEmailSender.sendLoginVerificationCode(
-            mfaRequirements.email2faTarget,
-            user.username || user.email,
-            codeResult.code,
-            codeResult.expiresInMinutes
-          );
+          // Send the code via email using database template
+          await mfaEmailSender.sendVerificationCode({
+            to: mfaRequirements.email2faTarget,
+            code: codeResult.code,
+            username: user.username || user.email,
+            expiryMinutes: codeResult.expiresInMinutes
+          });
 
           emailCodeSent = true;
           emailCodeExpiresAt = codeResult.expiresAt;
@@ -468,6 +516,47 @@ const login = async (req, res, next) => {
           },
         });
       }
+    }
+
+    // Check MFA enforcement status
+    const enforcementStatus = await mfaEnforcementService.getEnforcementStatus(user);
+
+    if (enforcementStatus.mfaSetupRequired) {
+      // User must set up MFA before accessing the app
+      // Generate a temporary token for MFA setup
+      const mfaSetupToken = generateMFAChallengeToken({
+        id: user.id,
+        email: user.email,
+        purpose: 'mfa_setup',
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'MFA setup required',
+        data: {
+          mfaSetupRequired: true,
+          mfaSetupToken,
+          mfaMode: enforcementStatus.mfaMode,
+          mfaStatus: enforcementStatus.mfaStatus,
+          gracePeriodExpired: enforcementStatus.gracePeriodExpired || false,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+          },
+        },
+      });
+    }
+
+    // Check if user is in grace period (show warning but allow login)
+    let gracePeriodWarning = null;
+    if (enforcementStatus.gracePeriodActive) {
+      gracePeriodWarning = {
+        active: true,
+        daysRemaining: enforcementStatus.daysRemaining,
+        gracePeriodEnd: enforcementStatus.gracePeriodEnd,
+        message: `You have ${enforcementStatus.daysRemaining} day${enforcementStatus.daysRemaining !== 1 ? 's' : ''} remaining to set up MFA.`,
+      };
     }
 
     // Log successful login attempt
@@ -539,6 +628,11 @@ const login = async (req, res, next) => {
           gracePeriodDays: verificationSettings.gracePeriodDays,
         };
       }
+    }
+
+    // Add MFA grace period warning if applicable
+    if (gracePeriodWarning) {
+      responseData.mfaGracePeriodWarning = gracePeriodWarning;
     }
 
     // Return success response
@@ -766,7 +860,7 @@ const forgotPassword = async (req, res, next) => {
       const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
       // Send email without waiting (async, non-blocking)
-      dynamicEmailService
+      templateEmailService
         .sendPasswordResetEmail(user.email, user.username, resetUrl)
         .then(() => {
           console.log(`✅ Password reset email sent to ${user.email}`);
@@ -863,8 +957,8 @@ const resetPassword = async (req, res, next) => {
     });
 
     // Send confirmation email asynchronously (non-blocking)
-    dynamicEmailService
-      .sendPasswordResetConfirmationEmail(user.email, user.username)
+    templateEmailService
+      .sendPasswordChangedEmail(user.email, user.username || user.email, { ipAddress: req.ip || req.headers["x-forwarded-for"] || "Unknown" })
       .then(() => {
         console.log(`✅ Password reset confirmation email sent to ${user.email}`);
       })

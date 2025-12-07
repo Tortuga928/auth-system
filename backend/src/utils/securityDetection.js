@@ -8,6 +8,8 @@
 const LoginAttempt = require('../models/LoginAttempt');
 const SecurityEvent = require('../models/SecurityEvent');
 const Session = require('../models/Session');
+const templateEmailService = require('../services/templateEmailService');
+const UserModel = require('../models/User');
 
 /**
  * Detect if login is from a new location
@@ -217,6 +219,21 @@ async function checkLoginSecurity(params) {
           ip_address: ipAddress,
         });
         if (event) events.push(event);
+
+        // Send new device login alert email (non-blocking)
+        try {
+          const userForEmail = await UserModel.findById(userId);
+          if (userForEmail) {
+            const deviceDesc = (browser || 'Unknown') + ' on ' + (os || 'Unknown');
+            templateEmailService.sendNewDeviceLoginEmail(userForEmail.email, userForEmail.username || userForEmail.email, {
+              deviceInfo: deviceDesc,
+              location: location || 'Unknown',
+              ipAddress: ipAddress || 'Unknown',
+            }).catch(err => console.error('Failed to send new device login email:', err.message));
+          }
+        } catch (emailErr) {
+          console.error('Error getting user for new device email:', emailErr.message);
+        }
       }
     }
 

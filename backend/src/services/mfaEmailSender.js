@@ -1,12 +1,12 @@
 /**
  * MFA Email Sender Service
  *
- * Handles sending MFA verification code emails using configurable templates.
- * Integrates with the existing email service and MFA template system.
+ * Handles sending MFA verification code emails using database-stored templates.
+ * Integrates with templateEmailService for template rendering and emailService for delivery.
  */
 
 const emailService = require('./emailService');
-const MFAEmailTemplate = require('../models/MFAEmailTemplate');
+const templateEmailService = require('./templateEmailService');
 const MFAConfig = require('../models/MFAConfig');
 
 class MFAEmailSender {
@@ -17,48 +17,32 @@ class MFAEmailSender {
    * @param {string} options.to - Recipient email address
    * @param {string} options.code - Verification code
    * @param {string} options.username - User's name/username (optional)
+   * @param {number} options.expiryMinutes - Code expiry in minutes (optional)
    * @returns {Promise<Object>} Send result
    */
-  async sendVerificationCode({ to, code, username }) {
+  async sendVerificationCode({ to, code, username, expiryMinutes }) {
     try {
-      // Get active email template
-      const template = await MFAEmailTemplate.getActive();
-      if (!template) {
-        throw new Error('No active MFA email template found');
+      // Get MFA config for expiry time if not provided
+      let expiry = expiryMinutes;
+      if (!expiry) {
+        const config = await MFAConfig.get();
+        expiry = config.code_expiration_minutes || 10;
       }
 
-      // Get MFA config for expiry time
-      const config = await MFAConfig.get();
-
-      // Render the template with variables
-      const rendered = MFAEmailTemplate.render(template, {
-        code,
-        expiry_minutes: config.code_expiration_minutes,
-        app_name: template.app_name || 'Auth System',
-        user_email: to,
-        user_name: username || to.split('@')[0],
-      });
-
-      // Send the email using existing email service
-      const result = await emailService.sendEmail({
-        to,
-        subject: rendered.subject,
-        text: rendered.textBody,
-        html: rendered.htmlBody,
-      });
+      // Use templateEmailService to send email with database template
+      const result = await templateEmailService.send2FACodeEmail(to, code, expiry);
 
       return {
         success: true,
         messageId: result.messageId,
         previewUrl: result.previewUrl,
-        template: template.template_name,
+        template: 'email_2fa_verification',
       };
     } catch (error) {
       console.error('Failed to send MFA verification email:', error);
       throw new Error(`Failed to send MFA code: ${error.message}`);
     }
   }
-
   /**
    * Send MFA setup confirmation email
    *

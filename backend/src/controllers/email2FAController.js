@@ -13,7 +13,6 @@ const mfaEmailSender = require('../services/mfaEmailSender');
 const MFAConfig = require('../models/MFAConfig');
 const UserMFAPreferences = require('../models/UserMFAPreferences');
 const TrustedDevice = require('../models/TrustedDevice');
-const User = require('../models/User');
 
 /**
  * Request a new verification code
@@ -119,20 +118,8 @@ const verifyCode = async (req, res) => {
 
     // Handle different error types
     if (result.error === 'LOCKED_OUT') {
-      // Send lockout notification email
-      if (email) {
-        try {
-          const user = await User.findById(userId);
-          await mfaEmailSender.sendLockoutNotification({
-            to: email,
-            username: user?.username,
-            lockedUntil: result.lockedUntil,
-            attemptCount: 0, // Could track this
-          });
-        } catch (emailError) {
-          console.error('Failed to send lockout notification:', emailError);
-        }
-      }
+      // Note: Lockout notification email is sent by email2FAService.verifyCode
+      // using templateEmailService.sendAccountLockedEmail (database template)
 
       return res.status(423).json({
         success: false,

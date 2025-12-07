@@ -10,6 +10,8 @@ const MFAConfig = require('../models/MFAConfig');
 const MFARoleConfig = require('../models/MFARoleConfig');
 const UserMFAPreferences = require('../models/UserMFAPreferences');
 const AuditLog = require('../models/AuditLog');
+const templateEmailService = require('./templateEmailService');
+const User = require('../models/User');
 
 class Email2FAService {
   /**
@@ -188,6 +190,18 @@ class Email2FAService {
         ip_address: options.ipAddress,
         user_agent: options.userAgent,
       });
+
+      // Send account locked notification email (non-blocking)
+      try {
+        const user = await User.findById(userId);
+        if (user) {
+          const unlockDate = new Date(result.lockedUntil);
+          templateEmailService.sendAccountLockedEmail(user.email, user.username || user.email, unlockDate)
+            .catch(err => console.error("Failed to send account locked email:", err.message));
+        }
+      } catch (emailErr) {
+        console.error("Error fetching user for lockout email:", emailErr.message);
+      }
     }
 
     return {
