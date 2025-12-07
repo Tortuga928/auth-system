@@ -9,6 +9,10 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { uploadAvatar } = require('../middleware/upload');
 const userController = require('../controllers/userController');
+const { testEmailDailyLimiter, testEmailCooldownLimiter } = require('../middleware/rateLimiter');
+const emailTestService = require('../services/emailTestService');
+const { logActivity } = require('../services/activityLogService');
+const User = require('../models/User');
 
 /**
  * @route   GET /api/user/profile
@@ -88,4 +92,54 @@ router.post('/change-password', authenticate, userController.changePassword);
  */
 router.delete('/account', authenticate, userController.deleteAccount);
 
+
+/**
+ * @route   POST /api/user/test-email
+ * @desc    Send test email to verify email delivery
+ * @access  Private (rate limited: 30s cooldown, 25/day)
+ *
+ * Sends a branded test email to the authenticated user's email address.
+ * Rate limited to prevent abuse:
+ * - 30 second cooldown between requests
+ * - Maximum 25 emails per day
+ */
+router.post('/test-email', authenticate, testEmailCooldownLimiter, testEmailDailyLimiter, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user's email
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Send test email
+    const result = await emailTestService.sendBrandedTestEmail(user.email);
+
+    // Log activity
+    await logActivity({
+      userId,
+      action: 'test_email_sent',
+      description: 'User sent test email to verify delivery',
+      metadata: { recipient: user.email, timestamp: result.timestamp },
+      req,
+    });
+
+    res.json({
+      success: true,
+      message: 'Test email sent successfully',
+      email: user.email,
+      timestamp: result.timestamp,
+    });
+  } catch (error) {
+    console.error('Test email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to send test email. Please try again later.',
+    });
+  }
+});
 module.exports = router;

@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiService from '../services/api';
 import AvatarUpload from '../components/AvatarUpload';
+import TestEmailModal from '../components/TestEmailModal';
 
 function DashboardPage() {
   const [profileData, setProfileData] = useState(null);
@@ -19,6 +20,7 @@ function DashboardPage() {
     unacknowledgedEvents: 0,
     recentLoginAttempts: { total: 0, successful: 0, failed: 0 },
   });
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
 
   // Fetch profile data on mount
   useEffect(() => {
@@ -296,6 +298,15 @@ function DashboardPage() {
               <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📊</div>
               <div>View Activity Log</div>
             </Link>
+
+            <button
+              onClick={() => setShowTestEmailModal(true)}
+              className="btn btn-primary"
+              style={{ padding: '1rem' }}
+            >
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✉️</div>
+              <div>Send Test Email</div>
+            </button>
           </div>
         </div>
       </div>
@@ -466,6 +477,17 @@ function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Test Email Modal */}
+      <TestEmailModal
+        isOpen={showTestEmailModal}
+        onClose={() => setShowTestEmailModal(false)}
+        isAdmin={false}
+        sendTestEmail={async () => {
+          const response = await apiService.user.sendTestEmail();
+          return response.data;
+        }}
+      />
     </div>
   );
 }

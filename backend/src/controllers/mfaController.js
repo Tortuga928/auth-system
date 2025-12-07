@@ -14,6 +14,17 @@ const crypto = require('crypto');
 const { sendMFAResetEmail } = require('../services/dynamicEmailService');
 const { extractSessionMetadata } = require('../utils/sessionUtils');
 
+// Email 2FA imports (Phase 4)
+const MFAConfig = require('../models/MFAConfig');
+const TrustedDevice = require('../models/TrustedDevice');
+const email2FAService = require('../services/email2FAService');
+const mfaEmailSender = require('../services/mfaEmailSender');
+
+// MFA Enforcement imports
+const mfaEnforcementService = require('../services/mfaEnforcementService');
+const UserMFAPreferences = require('../models/UserMFAPreferences');
+const templateEmailService = require('../services/templateEmailService');
+
 /**
  * POST /api/auth/mfa/setup
  *
@@ -308,6 +319,18 @@ const regenerateBackupCodes = async (req, res) => {
     await MFASecret.update(userId, {
       backup_codes: newBackupCodes,
     });
+
+    // Send backup codes generated notification email (non-blocking)
+    try {
+      const user = await User.findById(userId);
+      if (user) {
+        const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'Unknown';
+        templateEmailService.sendBackupCodesGeneratedEmail(user.email, user.username || user.email, { ipAddress })
+          .catch(err => console.error('Failed to send backup codes generated email:', err.message));
+      }
+    } catch (emailErr) {
+      console.error('Error sending backup codes email:', emailErr.message);
+    }
 
     return res.status(200).json({
       success: true,
@@ -907,12 +930,601 @@ const unlockMFAAccount = async (req, res) => {
   }
 };
 
-module.exports = {
-  getMFAStatus,
-  requestMFAReset,
-  confirmMFAReset,
-  unlockMFAAccount,
+/**
+ * POST /api/auth/mfa/verify-email
+ *
+ * Verify Email 2FA code during login
+ * Requires MFA challenge token (from login response)
+ *
+ * @body {string} code - 6 or 8 digit email verification code
+ * @body {string} mfaChallengeToken - MFA challenge token from login
+ * @body {boolean} trustDevice - Whether to trust this device for future logins
+ * @returns {Object} Access and refresh tokens
+ */
+const verifyEmailCode = async (req, res) => {
+  try {
+    const { code, mfaChallengeToken, trustDevice } = req.body;
+
+    // Validate input - code can be 6 or 8 digits depending on config
+    if (!code || !/^\d{6,8}$/.test(code)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid code format',
+        error: 'Code must be a 6 or 8 digit number',
+      });
+    }
+
+    if (!mfaChallengeToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA challenge token required',
+        error: 'Please provide the MFA challenge token from login',
+      });
+    }
+
+    // Verify MFA challenge token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaChallengeToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA challenge token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Extract session metadata
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Verify the email code
+    const verificationResult = await email2FAService.verifyCode(userId, code, {
+      ipAddress: sessionMetadata.ip_address,
+      userAgent: sessionMetadata.user_agent,
+    });
+
+    if (!verificationResult.success) {
+      return res.status(401).json({
+        success: false,
+        message: verificationResult.message,
+        error: verificationResult.error,
+        attemptsRemaining: verificationResult.attemptsRemaining,
+        lockedUntil: verificationResult.lockedUntil,
+      });
+    }
+
+    // Get user details
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Trust device if requested
+    if (trustDevice) {
+      const mfaConfig = await MFAConfig.get();
+      if (mfaConfig.device_trust_enabled) {
+        const deviceInfo = {
+          userAgent: sessionMetadata.user_agent,
+          ipAddress: sessionMetadata.ip_address,
+          acceptLanguage: req.headers['accept-language'],
+        };
+
+        try {
+          await TrustedDevice.trust(
+            userId,
+            deviceInfo,
+            mfaConfig.device_trust_duration_days
+          );
+
+          // Enforce device limit
+          await TrustedDevice.enforceLimit(userId, mfaConfig.max_trusted_devices);
+        } catch (trustError) {
+          console.error('Failed to trust device:', trustError.message);
+          // Don't fail the login if device trust fails
+        }
+      }
+    }
+
+    // Generate full access tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Calculate session expiration
+    const now = Date.now();
+    const sessionDuration = config.session.timeout.absolute; // 7 days default
+    const expiresAt = new Date(now + sessionDuration);
+    const absoluteExpiresAt = new Date(now + sessionDuration);
+
+    // Create session record with metadata
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: expiresAt,
+      remember_me: false,
+      absolute_expires_at: absoluteExpiresAt,
+      ...sessionMetadata,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email 2FA verification successful',
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          email_verified: user.email_verified,
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+        deviceTrusted: trustDevice || false,
+      },
+    });
+  } catch (error) {
+    console.error('Email 2FA verification error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Email 2FA verification failed',
+      error: error.message,
+    });
+  }
 };
+
+/**
+ * POST /api/auth/mfa/resend-email
+ *
+ * Resend Email 2FA code during login
+ * Requires MFA challenge token (from login response)
+ *
+ * @body {string} mfaChallengeToken - MFA challenge token from login
+ * @returns {Object} Success message with expiration info
+ */
+const resendEmailCode = async (req, res) => {
+  try {
+    const { mfaChallengeToken } = req.body;
+
+    if (!mfaChallengeToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA challenge token required',
+        error: 'Please provide the MFA challenge token from login',
+      });
+    }
+
+    // Verify MFA challenge token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaChallengeToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA challenge token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Get user for email
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Extract session metadata
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Determine email to use (primary or alternate)
+    const email2faTarget = await email2FAService.getUserMFAStatus(userId);
+    const targetEmail = email2faTarget.alternateEmail && email2faTarget.alternateEmailVerified
+      ? email2faTarget.alternateEmail
+      : user.email;
+
+    try {
+      // Resend code
+      const result = await email2FAService.resendCode(userId, targetEmail, {
+        ipAddress: sessionMetadata.ip_address,
+        userAgent: sessionMetadata.user_agent,
+      });
+
+      // Send the code via email
+      await mfaEmailSender.sendLoginVerificationCode(
+        targetEmail,
+        user.username || user.email,
+        result.code,
+        result.expiresInMinutes
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'Verification code resent',
+        data: {
+          expiresAt: result.expiresAt,
+          expiresInMinutes: result.expiresInMinutes,
+          canResendAt: result.canResendAt,
+          resendCount: result.resendCount,
+          resendsRemaining: result.resendsRemaining,
+        },
+      });
+    } catch (resendError) {
+      if (resendError.code === 'RESEND_RATE_LIMITED') {
+        return res.status(429).json({
+          success: false,
+          message: 'Rate limit exceeded',
+          error: resendError.message,
+          retryAfter: resendError.retryAfter,
+          resendsRemaining: resendError.resendsRemaining,
+        });
+      }
+      throw resendError;
+    }
+  } catch (error) {
+    console.error('Resend email code error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to resend verification code',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * POST /api/auth/mfa/switch-method
+ *
+ * Switch to a different MFA method during login (e.g., from TOTP to Email fallback)
+ * Requires MFA challenge token
+ *
+ * @body {string} mfaChallengeToken - MFA challenge token from login
+ * @body {string} method - Target method ('email' or 'totp')
+ * @returns {Object} New challenge info
+ */
+const switchMFAMethod = async (req, res) => {
+  try {
+    const { mfaChallengeToken, method } = req.body;
+
+    if (!mfaChallengeToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA challenge token required',
+      });
+    }
+
+    if (!method || !['email', 'totp'].includes(method)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid method',
+        error: 'Method must be "email" or "totp"',
+      });
+    }
+
+    // Verify MFA challenge token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaChallengeToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA challenge token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if target method is available
+    const mfaStatus = await email2FAService.getUserMFAStatus(userId);
+
+    if (method === 'totp' && !mfaStatus.totpEnabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'TOTP not available',
+        error: 'TOTP authentication is not set up for this account',
+      });
+    }
+
+    // If switching to email, send a new code
+    if (method === 'email') {
+      const sessionMetadata = extractSessionMetadata(req);
+      const targetEmail = mfaStatus.alternateEmail && mfaStatus.alternateEmailVerified
+        ? mfaStatus.alternateEmail
+        : user.email;
+
+      try {
+        const codeResult = await email2FAService.generateCode(
+          userId,
+          targetEmail,
+          { ipAddress: sessionMetadata.ip_address, userAgent: sessionMetadata.user_agent }
+        );
+
+        // Send the code via email
+        await mfaEmailSender.sendLoginVerificationCode(
+          targetEmail,
+          user.username || user.email,
+          codeResult.code,
+          codeResult.expiresInMinutes
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: 'Switched to email verification',
+          data: {
+            method: 'email',
+            emailCodeSent: true,
+            expiresAt: codeResult.expiresAt,
+            canResendAt: codeResult.canResendAt,
+          },
+        });
+      } catch (emailError) {
+        if (emailError.code === 'RATE_LIMITED') {
+          return res.status(429).json({
+            success: false,
+            message: 'Rate limit exceeded',
+            error: emailError.message,
+            retryAfter: emailError.retryAfter,
+          });
+        }
+        throw emailError;
+      }
+    }
+
+    // Switching to TOTP - just confirm the switch
+    return res.status(200).json({
+      success: true,
+      message: 'Switched to TOTP verification',
+      data: {
+        method: 'totp',
+        instruction: 'Enter the 6-digit code from your authenticator app',
+      },
+    });
+  } catch (error) {
+    console.error('Switch MFA method error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to switch MFA method',
+      error: error.message,
+    });
+  }
+};
+
+
+/**
+ * POST /api/auth/mfa/complete-required-setup
+ *
+ * Complete required MFA setup for new users or users with expired grace period.
+ * This is called after user successfully sets up MFA when enforcement is active.
+ *
+ * @body {string} mfaSetupToken - Token received during login indicating MFA setup required
+ * @body {string} totpToken - (Optional) 6-digit TOTP token if TOTP was set up
+ * @returns {Object} Access tokens and user data
+ */
+const completeRequiredMFASetup = async (req, res) => {
+  try {
+    const { mfaSetupToken, totpToken } = req.body;
+
+    // Validate setup token
+    if (!mfaSetupToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA setup token is required',
+      });
+    }
+
+    // Verify the setup token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaSetupToken);
+      if (decoded.purpose !== 'mfa_setup') {
+        throw new Error('Invalid token purpose');
+      }
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA setup token',
+        error: error.message,
+      });
+    }
+
+    const userId = decoded.id;
+    const userEmail = decoded.email;
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Get MFA config to determine required methods
+    const mfaConfig = await MFAConfig.get();
+
+    // Check what MFA methods the user has configured
+    const mfaStatus = await mfaEnforcementService.checkUserMFAConfiguration(userId, mfaConfig.mfa_mode);
+
+    if (!mfaStatus.isFullyConfigured) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA setup not complete',
+        error: 'Please complete all required MFA setup steps',
+        data: {
+          requiredMethods: mfaStatus.requiredMethods,
+          configuredMethods: mfaStatus.configuredMethods,
+          pendingMethods: mfaStatus.pendingMethods,
+        },
+      });
+    }
+
+    // If TOTP is configured and totpToken provided, verify it
+    if (mfaStatus.hasTotpEnabled && totpToken) {
+      const mfaSecret = await MFASecret.findByUserId(userId);
+      if (mfaSecret) {
+        const isValid = MFASecret.verifyTOTP(totpToken, mfaSecret.secret, 10);
+        if (!isValid) {
+          return res.status(401).json({
+            success: false,
+            message: 'Invalid verification code',
+            error: 'The TOTP code you entered is incorrect',
+          });
+        }
+      }
+    }
+
+    // Mark MFA setup as completed
+    await mfaEnforcementService.markMFASetupCompleted(userId);
+
+    // Extract session metadata
+    const sessionMetadata = extractSessionMetadata(req);
+
+    // Generate tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Create session
+    const now = Date.now();
+    const sessionDuration = 7 * 24 * 60 * 60 * 1000; // 7 days default
+    const expiresAt = new Date(now + sessionDuration);
+
+    await Session.create({
+      user_id: user.id,
+      refresh_token: tokens.refreshToken,
+      expires_at: expiresAt,
+      remember_me: false,
+      absolute_expires_at: expiresAt,
+      ...sessionMetadata,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'MFA setup completed successfully',
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          email_verified: user.email_verified,
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
+        mfaConfigured: true,
+        configuredMethods: mfaStatus.configuredMethods,
+      },
+    });
+  } catch (error) {
+    console.error('Complete required MFA setup error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to complete MFA setup',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/auth/mfa/enforcement-status
+ *
+ * Get MFA enforcement status for the current user (used during setup flow)
+ * Requires mfaSetupToken in query or header
+ *
+ * @returns {Object} MFA enforcement status and required methods
+ */
+const getEnforcementStatus = async (req, res) => {
+  try {
+    const mfaSetupToken = req.query.token || req.headers['x-mfa-setup-token'];
+
+    if (!mfaSetupToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'MFA setup token is required',
+      });
+    }
+
+    // Verify the setup token
+    let decoded;
+    try {
+      decoded = verifyMFAChallengeToken(mfaSetupToken);
+    } catch (error) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired MFA setup token',
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Get user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Get MFA config
+    const mfaConfig = await MFAConfig.get();
+
+    // Check current MFA configuration status
+    const mfaStatus = await mfaEnforcementService.checkUserMFAConfiguration(userId, mfaConfig.mfa_mode);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        mfaMode: mfaConfig.mfa_mode,
+        isFullyConfigured: mfaStatus.isFullyConfigured,
+        requiredMethods: mfaStatus.requiredMethods,
+        configuredMethods: mfaStatus.configuredMethods,
+        pendingMethods: mfaStatus.pendingMethods,
+        hasTotpEnabled: mfaStatus.hasTotpEnabled,
+        hasEmail2FAEnabled: mfaStatus.hasEmail2FAEnabled,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get enforcement status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to get enforcement status',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   setupMFA,
   enableMFA,
@@ -920,9 +1532,14 @@ module.exports = {
   regenerateBackupCodes,
   verifyTOTP,
   verifyBackupCode,
+  verifyEmailCode,
+  resendEmailCode,
+  switchMFAMethod,
   getMFAStatus,
   requestMFAReset,
   confirmMFAReset,
   unlockMFAAccount,
+  completeRequiredMFASetup,
+  getEnforcementStatus,
 };
 

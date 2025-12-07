@@ -35,13 +35,17 @@ const adminApi = {
   reactivateUser: (id) => api.put(`/api/admin/users/${id}/reactivate`),
   searchUsers: (query, limit = 10) => api.get(`/api/admin/users/search?q=${encodeURIComponent(query)}&limit=${limit}`),
 
+  // Send test email to a user (no rate limiting for admins)
+  sendTestEmail: (userId) => api.post(`/api/admin/users/${userId}/test-email`),
+
   // Archive management
   getUsersWithArchive: (params = {}) => {
     const queryParams = new URLSearchParams();
     if (params.page) queryParams.append('page', params.page);
     if (params.pageSize) queryParams.append('pageSize', params.pageSize);
     if (params.role) queryParams.append('role', params.role);
-    if (params.status) queryParams.append('status', params.status);
+    // Use !== undefined to allow empty string for 'All' status filter
+    if (params.status !== undefined) queryParams.append('status', params.status);
     if (params.search) queryParams.append('search', params.search);
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
@@ -65,6 +69,32 @@ const adminApi = {
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
     return api.get(`/api/admin/audit-logs?${queryParams.toString()}`);
   },
+
+  // MFA Summary (Dashboard-style overview)
+  getMFASummary: () => api.get("/api/admin/mfa/summary"),
+
+  // MFA Configuration (Phase 5)
+  getMFAConfig: () => api.get('/api/admin/mfa/config'),
+  updateMFAConfig: (data) => api.put('/api/admin/mfa/config', data),
+  resetMFAConfig: () => api.post('/api/admin/mfa/config/reset'),
+
+  // MFA Role Configs
+  getMFARoleConfigs: () => api.get('/api/admin/mfa/roles'),
+  getMFARoleConfig: (role) => api.get(`/api/admin/mfa/roles/${role}`),
+  updateMFARoleConfig: (role, data) => api.put(`/api/admin/mfa/roles/${role}`, data),
+
+  // MFA Email Templates
+  getMFATemplates: () => api.get('/api/admin/mfa/email-template'),
+  getMFATemplate: (type) => api.get(`/api/admin/mfa/email-template/${type}`),
+  updateMFATemplate: (type, data) => api.put(`/api/admin/mfa/email-template/${type}`, data),
+  activateMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/activate`),
+  resetMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/reset`),
+
+  // MFA User Management
+  getMFAUsers: () => api.get('/api/admin/mfa/users'),
+  unlockMFAUser: (userId) => api.post(`/api/admin/mfa/users/${userId}/unlock`),
+  forceUserMFATransition: (userId, method) => api.post(`/api/admin/mfa/users/${userId}/force-transition`, { method }),
+  applySystemMFAChange: (options) => api.post('/api/admin/mfa/apply-method-change', options),
 };
 
 export default adminApi;

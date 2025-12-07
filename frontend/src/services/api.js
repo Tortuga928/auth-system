@@ -76,8 +76,38 @@ const apiService = {
     refreshToken: () => api.post('/api/auth/refresh'),
     forgotPassword: (data) => api.post('/api/auth/forgot-password', data),
     resetPassword: (token, data) => api.post(`/api/auth/reset-password/${token}`, data),
+    verifyEmail: (token) => api.get(`/api/auth/verify-email/${token}`),
     verifyMFA: (data) => api.post('/api/auth/mfa/verify', data),
     verifyBackupCode: (data) => api.post('/api/auth/mfa/verify-backup', data),
+    // Email 2FA endpoints (Phase 6)
+    verifyEmailMFA: (data) => api.post('/api/auth/mfa/verify-email', data),
+    resendEmailMFA: (data) => api.post('/api/auth/mfa/resend-email', data),
+    switchMFAMethod: (data) => api.post('/api/auth/mfa/switch-method', data),
+  },
+
+  // MFA Configuration endpoints (Phase 6)
+  mfa: {
+    // Public config (no auth required)
+    getPublicConfig: () => api.get('/api/auth/mfa/config'),
+    // User MFA status (auth required)
+    getStatus: () => api.get('/api/auth/mfa/status'),
+    // Email 2FA management (auth required)
+    enableEmail2FA: () => api.post('/api/auth/mfa/email/enable'),
+    disableEmail2FA: (data) => api.post('/api/auth/mfa/email/disable', data),
+    requestEmailCode: () => api.post('/api/auth/mfa/email/request'),
+    verifyEmailCode: (data) => api.post('/api/auth/mfa/email/verify', data),
+    resendEmailCode: () => api.post('/api/auth/mfa/email/resend'),
+    // Alternate email
+    setAlternateEmail: (data) => api.post('/api/auth/mfa/email/alternate', data),
+    verifyAlternateEmail: (data) => api.post('/api/auth/mfa/email/alternate/verify', data),
+    removeAlternateEmail: () => api.delete('/api/auth/mfa/email/alternate'),
+    // Trusted devices
+    getTrustedDevices: () => api.get('/api/auth/mfa/trusted-devices'),
+    removeTrustedDevice: (deviceId) => api.delete(`/api/auth/mfa/trusted-devices/${deviceId}`),
+    removeAllTrustedDevices: () => api.delete('/api/auth/mfa/trusted-devices'),
+    // User preferences
+    getPreferences: () => api.get('/api/auth/mfa/preferences'),
+    updatePreferences: (data) => api.put('/api/auth/mfa/preferences', data),
   },
 
   // User endpoints (to be implemented)
@@ -91,6 +121,8 @@ const apiService = {
     deleteAvatar: () => api.delete('/api/user/avatar'),
     getActivity: (page = 1, limit = 25) => api.get(`/api/user/activity?page=${page}&limit=${limit}`),
     deleteAccount: (data) => api.delete('/api/user/account', { data }),
+    // Test email endpoint (rate limited: 30s cooldown, 25/day)
+    sendTestEmail: () => api.post('/api/user/test-email'),
   },
 
   // OAuth endpoints

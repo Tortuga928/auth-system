@@ -8,6 +8,7 @@ const User = require('../models/User');
 const MFASecret = require('../models/MFASecret');
 const OAuthProvider = require('../models/OAuthProvider');
 const { getRecentActivity } = require('../services/activityLogService');
+const templateEmailService = require('../services/templateEmailService');
 
 /**
  * Get user profile and dashboard data
@@ -510,6 +511,14 @@ const changePassword = async (req, res) => {
       req,
     });
 
+    // Send password changed confirmation email (non-blocking)
+    try {
+      const ipAddress = req.ip || req.headers["x-forwarded-for"] || "Unknown";
+      await templateEmailService.sendPasswordChangedEmail(user.email, user.username || user.email, { ipAddress });
+    } catch (emailError) {
+      console.error("Failed to send password changed email:", emailError.message);
+    }
+
     res.json({
       success: true,
       message: 'Password changed successfully',
@@ -588,6 +597,10 @@ const deleteAccount = async (req, res) => {
 
     // Delete user from database
     await User.delete(userId);
+
+    // Send account deactivation email (non-blocking)
+    templateEmailService.sendAccountDeactivationEmail(user.email, user.username || user.email)
+      .catch(err => console.error('Failed to send account deactivation email:', err.message));
 
     res.json({
       success: true,

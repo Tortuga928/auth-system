@@ -1,51 +1,47 @@
 /**
  * Custom hook for MFA operations
  * Manages MFA state and provides functions for all MFA-related actions
+ * Updated with Email 2FA support (Phase 6)
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 
 export const useMFA = () => {
-  console.log('🎯 [useMFA] Hook initialized!');
-
   const [mfaStatus, setMfaStatus] = useState({
     enabled: false,
     backupCodesRemaining: 0,
     loading: true,
     error: null,
+    // Email 2FA fields (Phase 6)
+    email2FAEnabled: false,
+    totpEnabled: false,
+    alternateEmail: null,
+    preferredMethod: 'totp',
   });
 
   /**
    * Fetch current MFA status
    */
   const fetchMFAStatus = useCallback(async () => {
-    console.log('🔍 [useMFA] fetchMFAStatus called');
-    console.log('🔍 [useMFA] Auth token:', localStorage.getItem('authToken')?.substring(0, 20) + '...');
-
     try {
       setMfaStatus(prev => ({ ...prev, loading: true, error: null }));
-      console.log('🔍 [useMFA] Making API call to /api/auth/mfa/status');
 
       const response = await api.get('/api/auth/mfa/status');
-
-      console.log('✅ [useMFA] API Response:', response.data);
+      const data = response.data.data;
 
       setMfaStatus({
-        enabled: response.data.data.mfaEnabled,
-        backupCodesRemaining: response.data.data.backupCodesRemaining || 0,
+        enabled: data.mfaEnabled,
+        backupCodesRemaining: data.backupCodesRemaining || 0,
         loading: false,
         error: null,
+        // Email 2FA fields (Phase 6)
+        email2FAEnabled: data.email2FAEnabled || false,
+        totpEnabled: data.totpEnabled || data.mfaEnabled || false,
+        alternateEmail: data.alternateEmail || null,
+        preferredMethod: data.preferredMethod || 'totp',
       });
-
-      console.log('✅ [useMFA] State updated successfully');
     } catch (error) {
-      console.error('❌ [useMFA] Error caught:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-
       setMfaStatus(prev => ({
         ...prev,
         loading: false,
@@ -196,9 +192,158 @@ export const useMFA = () => {
     }
   };
 
+  // ==========================================
+  // Email 2FA Functions (Phase 6)
+  // ==========================================
+
+  /**
+   * Enable Email 2FA
+   */
+  const enableEmail2FA = async () => {
+    try {
+      await api.post('/api/auth/mfa/email/enable');
+      await fetchMFAStatus();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to enable Email 2FA',
+      };
+    }
+  };
+
+  /**
+   * Disable Email 2FA - requires password confirmation
+   */
+  const disableEmail2FA = async (password) => {
+    try {
+      await api.post('/api/auth/mfa/email/disable', { password });
+      await fetchMFAStatus();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to disable Email 2FA',
+      };
+    }
+  };
+
+  /**
+   * Set alternate email for 2FA codes
+   */
+  const setAlternateEmail = async (email) => {
+    try {
+      const response = await api.post('/api/auth/mfa/email/alternate', { email });
+      return {
+        success: true,
+        data: response.data.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to set alternate email',
+      };
+    }
+  };
+
+  /**
+   * Verify alternate email with code
+   */
+  const verifyAlternateEmail = async (code) => {
+    try {
+      await api.post('/api/auth/mfa/email/alternate/verify', { code });
+      await fetchMFAStatus();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Invalid verification code',
+      };
+    }
+  };
+
+  /**
+   * Remove alternate email
+   */
+  const removeAlternateEmail = async () => {
+    try {
+      await api.delete('/api/auth/mfa/email/alternate');
+      await fetchMFAStatus();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to remove alternate email',
+      };
+    }
+  };
+
+  /**
+   * Get trusted devices
+   */
+  const getTrustedDevices = async () => {
+    try {
+      const response = await api.get('/api/auth/mfa/trusted-devices');
+      return {
+        success: true,
+        data: response.data.data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to fetch trusted devices',
+      };
+    }
+  };
+
+  /**
+   * Remove a trusted device
+   */
+  const removeTrustedDevice = async (deviceId) => {
+    try {
+      await api.delete(`/api/auth/mfa/trusted-devices/${deviceId}`);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to remove device',
+      };
+    }
+  };
+
+  /**
+   * Remove all trusted devices
+   */
+  const removeAllTrustedDevices = async () => {
+    try {
+      await api.delete('/api/auth/mfa/trusted-devices');
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to remove all devices',
+      };
+    }
+  };
+
+  /**
+   * Update MFA preferences (preferred method)
+   */
+  const updatePreferences = async (preferences) => {
+    try {
+      await api.put('/api/auth/mfa/preferences', preferences);
+      await fetchMFAStatus();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Failed to update preferences',
+      };
+    }
+  };
+
   // Fetch MFA status on mount
   useEffect(() => {
-    console.log('🔄 [useMFA] useEffect triggered - calling fetchMFAStatus');
     fetchMFAStatus();
   }, [fetchMFAStatus]);
 
@@ -208,8 +353,13 @@ export const useMFA = () => {
     backupCodesRemaining: mfaStatus.backupCodesRemaining,
     loading: mfaStatus.loading,
     error: mfaStatus.error,
+    // Email 2FA State (Phase 6)
+    email2FAEnabled: mfaStatus.email2FAEnabled,
+    totpEnabled: mfaStatus.totpEnabled,
+    alternateEmail: mfaStatus.alternateEmail,
+    preferredMethod: mfaStatus.preferredMethod,
 
-    // Actions
+    // TOTP Actions
     refreshStatus: fetchMFAStatus,
     setupMFA,
     enableMFA,
@@ -217,6 +367,17 @@ export const useMFA = () => {
     regenerateBackupCodes,
     verifyTOTP,
     verifyBackupCode,
+
+    // Email 2FA Actions (Phase 6)
+    enableEmail2FA,
+    disableEmail2FA,
+    setAlternateEmail,
+    verifyAlternateEmail,
+    removeAlternateEmail,
+    getTrustedDevices,
+    removeTrustedDevice,
+    removeAllTrustedDevices,
+    updatePreferences,
   };
 };
 

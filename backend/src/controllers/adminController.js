@@ -9,6 +9,7 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const bcrypt = require('bcrypt');
 const adminStatsService = require('../services/adminStatsService');
+const templateEmailService = require('../services/templateEmailService');
 
 /**
  * Get all users with pagination and filtering
@@ -245,6 +246,9 @@ exports.updateUser = async (req, res) => {
     }
     if (passwordChanged) {
       notifications.push('Password has been changed');
+      // Send password changed email to user (non-blocking)
+      templateEmailService.sendPasswordChangedEmail(user.email, user.username || user.email, { ipAddress: 'Admin Changed' })
+        .catch(err => console.error('Failed to send password changed email:', err.message));
     }
     if (notifications.length > 0) {
       message += '. ' + notifications.join('. ') + '.';
@@ -298,8 +302,17 @@ exports.deleteUser = async (req, res) => {
       });
     }
 
+    // Get user info before deactivation for email notification
+    const userToDeactivate = await User.findById(parseInt(id, 10));
+
     // Soft delete (deactivate)
     const deleted = await User.deactivate(parseInt(id, 10));
+
+    // Send account deactivation email if user found and deactivation successful
+    if (deleted && userToDeactivate) {
+      templateEmailService.sendAccountDeactivationEmail(userToDeactivate.email, userToDeactivate.username || userToDeactivate.email)
+        .catch(err => console.error('Failed to send account deactivation email:', err.message));
+    }
 
     if (!deleted) {
       return res.status(500).json({

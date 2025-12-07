@@ -17,6 +17,17 @@ const { getVerificationSettings, checkGracePeriod } = require('../middleware/ema
 const { extractSessionMetadata } = require('../utils/sessionUtils');
 const { checkLoginSecurity } = require('../utils/securityDetection');
 
+// Email 2FA imports (Phase 4)
+const MFAConfig = require('../models/MFAConfig');
+const UserMFAPreferences = require('../models/UserMFAPreferences');
+const TrustedDevice = require('../models/TrustedDevice');
+const email2FAService = require('../services/email2FAService');
+const mfaEmailSender = require('../services/mfaEmailSender');
+
+// MFA Enforcement imports
+const mfaEnforcementService = require('../services/mfaEnforcementService');
+const templateEmailService = require('../services/templateEmailService');
+
 /**
  * Register a new user
  *
@@ -111,7 +122,7 @@ const register = async (req, res, next) => {
 
     if (verificationSettings.enabled) {
       // Send email without waiting (async, non-blocking)
-      dynamicEmailService
+      templateEmailService
         .sendVerificationEmail(user.email, user.username, verificationUrl)
         .then(() => {
           console.log(`✅ Verification email sent to ${user.email}`);
@@ -124,17 +135,60 @@ const register = async (req, res, next) => {
       console.log('📧 Email verification disabled - skipping verification email');
     }
 
-    // Generate tokens
-    const tokens = generateTokenPair({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // Send welcome email (non-blocking)
+    templateEmailService
+      .sendWelcomeEmail(user.email, user.username)
+      .then(() => {
+        console.log(`✅ Welcome email sent to ${user.email}`);
+      })
+      .catch((error) => {
+        console.error('❌ Failed to send welcome email:', error.message);
+      });
+
+    // Check if MFA enforcement is enabled
+    const mfaConfig = await MFAConfig.get();
+    const mfaEnforcementEnabled = mfaConfig.mfa_enforcement_enabled && mfaConfig.mfa_mode !== 'disabled';
+
+    // If MFA enforcement is enabled, mark new user as requiring MFA setup
+    if (mfaEnforcementEnabled) {
+      await mfaEnforcementService.markUserRequiresMFASetup(user.id);
+    }
 
     // Return success response with appropriate message
     const successMessage = verificationSettings.enabled
       ? 'User registered successfully. Please check your email to verify your account.'
       : 'User registered successfully.';
+
+    // If email verification is enabled, don't issue tokens yet - user must verify email first
+    if (verificationSettings.enabled) {
+      return res.status(201).json({
+        success: true,
+        message: successMessage,
+        data: {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+            email_verified: false,
+          },
+          emailVerificationRequired: true,
+          mfaSetupRequired: mfaEnforcementEnabled,
+          emailVerification: {
+            enabled: verificationSettings.enabled,
+            enforced: verificationSettings.enforced,
+            gracePeriodDays: verificationSettings.gracePeriodDays,
+          },
+        },
+      });
+    }
+
+    // Email verification not required - generate tokens
+    const tokens = generateTokenPair({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     res.status(201).json({
       success: true,
@@ -151,6 +205,7 @@ const register = async (req, res, next) => {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
         },
+        mfaSetupRequired: mfaEnforcementEnabled,
         emailVerification: {
           enabled: verificationSettings.enabled,
           enforced: verificationSettings.enforced,
@@ -170,6 +225,127 @@ const register = async (req, res, next) => {
     console.error('Registration error:', error);
     next(error);
   }
+};
+
+/**
+ * Determine MFA requirements for a user
+ * Checks system config, role config, and user preferences
+ *
+ * @param {Object} user - User object with id, email, role
+ * @param {Object} deviceInfo - Device info for trusted device check
+ * @returns {Promise<Object>} MFA requirements
+ */
+const determineMFARequirements = async (user, deviceInfo = null) => {
+  // Get system MFA configuration
+  const mfaConfig = await MFAConfig.get();
+
+  // If MFA is globally disabled, no MFA required
+  if (mfaConfig.mfa_mode === 'disabled') {
+    return {
+      required: false,
+      reason: 'MFA is disabled system-wide',
+    };
+  }
+
+  // Check trusted device (if device trust is enabled)
+  if (mfaConfig.device_trust_enabled && deviceInfo) {
+    const isTrusted = await TrustedDevice.isTrusted(user.id, deviceInfo);
+    if (isTrusted) {
+      return {
+        required: false,
+        reason: 'Device is trusted',
+        deviceTrusted: true,
+      };
+    }
+  }
+
+  // Check existing TOTP MFA setup
+  const mfaSecret = await MFASecret.findByUserId(user.id);
+  const hasTotpEnabled = mfaSecret && mfaSecret.enabled;
+
+  // Get user MFA preferences
+  const userPrefs = await UserMFAPreferences.getByUserId(user.id);
+  const hasEmail2FAEnabled = userPrefs?.email_2fa_enabled || false;
+
+  // Determine available methods based on system mode and user setup
+  const availableMethods = [];
+  let primaryMethod = null;
+  let backupMethod = null;
+
+  switch (mfaConfig.mfa_mode) {
+    case 'totp_only':
+      // Only TOTP allowed - legacy mode
+      if (hasTotpEnabled) {
+        availableMethods.push('totp');
+        primaryMethod = 'totp';
+      }
+      break;
+
+    case 'email_only':
+      // Only Email 2FA allowed
+      availableMethods.push('email');
+      primaryMethod = 'email';
+      break;
+
+    case 'totp_email_required':
+      // Both required - user must verify with both
+      if (hasTotpEnabled) availableMethods.push('totp');
+      availableMethods.push('email');
+      primaryMethod = hasTotpEnabled ? 'totp' : 'email';
+      break;
+
+    case 'totp_email_fallback':
+      // TOTP primary, email as fallback
+      if (hasTotpEnabled) {
+        availableMethods.push('totp');
+        availableMethods.push('email');
+        primaryMethod = 'totp';
+        backupMethod = 'email';
+      } else if (hasEmail2FAEnabled) {
+        availableMethods.push('email');
+        primaryMethod = 'email';
+      }
+      break;
+
+    default:
+      // Check if user has any MFA enabled (legacy behavior)
+      if (hasTotpEnabled) {
+        availableMethods.push('totp');
+        primaryMethod = 'totp';
+      }
+      if (hasEmail2FAEnabled) {
+        availableMethods.push('email');
+        if (!primaryMethod) primaryMethod = 'email';
+      }
+  }
+
+  // If no methods available, MFA not required
+  if (availableMethods.length === 0) {
+    return {
+      required: false,
+      reason: 'No MFA method configured',
+      mfaMode: mfaConfig.mfa_mode,
+    };
+  }
+
+  // Determine the email to use for Email 2FA
+  let email2faTarget = user.email;
+  if (userPrefs?.alternate_email && userPrefs?.alternate_email_verified) {
+    email2faTarget = userPrefs.alternate_email;
+  }
+
+  return {
+    required: true,
+    primaryMethod,
+    backupMethod,
+    availableMethods,
+    mfaMode: mfaConfig.mfa_mode,
+    hasTotpEnabled,
+    hasEmail2FAEnabled,
+    email2faTarget,
+    deviceTrustEnabled: mfaConfig.device_trust_enabled,
+    deviceTrustDays: mfaConfig.device_trust_duration_days,
+  };
 };
 
 /**
@@ -239,14 +415,22 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Check if MFA is enabled
-    const mfaSecret = await MFASecret.findByUserId(user.id);
+    // Build device info for trusted device check
+    const deviceInfo = {
+      userAgent: sessionMetadata.user_agent,
+      ipAddress: sessionMetadata.ip_address,
+      acceptLanguage: req.headers['accept-language'],
+    };
 
-    if (mfaSecret && mfaSecret.enabled) {
-      // MFA is enabled - return MFA challenge token
+    // Check MFA requirements (unified check for TOTP and Email 2FA)
+    const mfaRequirements = await determineMFARequirements(user, deviceInfo);
+
+    if (mfaRequirements.required) {
+      // MFA is required - return MFA challenge token
       const mfaChallengeToken = generateMFAChallengeToken({
         id: user.id,
         email: user.email,
+        mfaMethod: mfaRequirements.primaryMethod,
       });
 
       // Log partial success (password correct, awaiting MFA)
@@ -258,12 +442,46 @@ const login = async (req, res, next) => {
         ...sessionMetadata,
       });
 
+      // If primary method is email, send the code now
+      let emailCodeSent = false;
+      let emailCodeExpiresAt = null;
+      if (mfaRequirements.primaryMethod === 'email') {
+        try {
+          const codeResult = await email2FAService.generateCode(
+            user.id,
+            mfaRequirements.email2faTarget,
+            { ipAddress: sessionMetadata.ip_address, userAgent: sessionMetadata.user_agent }
+          );
+
+          // Send the code via email using database template
+          await mfaEmailSender.sendVerificationCode({
+            to: mfaRequirements.email2faTarget,
+            code: codeResult.code,
+            username: user.username || user.email,
+            expiryMinutes: codeResult.expiresInMinutes
+          });
+
+          emailCodeSent = true;
+          emailCodeExpiresAt = codeResult.expiresAt;
+        } catch (emailError) {
+          console.error('Failed to send Email 2FA code:', emailError.message);
+          // Don't fail the login - user can request resend
+        }
+      }
+
       return res.status(200).json({
         success: true,
         message: 'MFA verification required',
         data: {
           mfaRequired: true,
           mfaChallengeToken,
+          mfaMethod: mfaRequirements.primaryMethod,
+          availableMethods: mfaRequirements.availableMethods,
+          backupMethod: mfaRequirements.backupMethod,
+          emailCodeSent,
+          emailCodeExpiresAt,
+          deviceTrustEnabled: mfaRequirements.deviceTrustEnabled,
+          deviceTrustDays: mfaRequirements.deviceTrustDays,
           user: {
             id: user.id,
             email: user.email,
@@ -272,7 +490,7 @@ const login = async (req, res, next) => {
       });
     }
 
-    // MFA not enabled - check email verification enforcement
+    // MFA not required - check email verification enforcement
 
     // Get verification settings
     const verificationSettings = await getVerificationSettings();
@@ -298,6 +516,47 @@ const login = async (req, res, next) => {
           },
         });
       }
+    }
+
+    // Check MFA enforcement status
+    const enforcementStatus = await mfaEnforcementService.getEnforcementStatus(user);
+
+    if (enforcementStatus.mfaSetupRequired) {
+      // User must set up MFA before accessing the app
+      // Generate a temporary token for MFA setup
+      const mfaSetupToken = generateMFAChallengeToken({
+        id: user.id,
+        email: user.email,
+        purpose: 'mfa_setup',
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'MFA setup required',
+        data: {
+          mfaSetupRequired: true,
+          mfaSetupToken,
+          mfaMode: enforcementStatus.mfaMode,
+          mfaStatus: enforcementStatus.mfaStatus,
+          gracePeriodExpired: enforcementStatus.gracePeriodExpired || false,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+          },
+        },
+      });
+    }
+
+    // Check if user is in grace period (show warning but allow login)
+    let gracePeriodWarning = null;
+    if (enforcementStatus.gracePeriodActive) {
+      gracePeriodWarning = {
+        active: true,
+        daysRemaining: enforcementStatus.daysRemaining,
+        gracePeriodEnd: enforcementStatus.gracePeriodEnd,
+        message: `You have ${enforcementStatus.daysRemaining} day${enforcementStatus.daysRemaining !== 1 ? 's' : ''} remaining to set up MFA.`,
+      };
     }
 
     // Log successful login attempt
@@ -369,6 +628,11 @@ const login = async (req, res, next) => {
           gracePeriodDays: verificationSettings.gracePeriodDays,
         };
       }
+    }
+
+    // Add MFA grace period warning if applicable
+    if (gracePeriodWarning) {
+      responseData.mfaGracePeriodWarning = gracePeriodWarning;
     }
 
     // Return success response
@@ -596,7 +860,7 @@ const forgotPassword = async (req, res, next) => {
       const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
       // Send email without waiting (async, non-blocking)
-      dynamicEmailService
+      templateEmailService
         .sendPasswordResetEmail(user.email, user.username, resetUrl)
         .then(() => {
           console.log(`✅ Password reset email sent to ${user.email}`);
@@ -693,8 +957,8 @@ const resetPassword = async (req, res, next) => {
     });
 
     // Send confirmation email asynchronously (non-blocking)
-    dynamicEmailService
-      .sendPasswordResetConfirmationEmail(user.email, user.username)
+    templateEmailService
+      .sendPasswordChangedEmail(user.email, user.username || user.email, { ipAddress: req.ip || req.headers["x-forwarded-for"] || "Unknown" })
       .then(() => {
         console.log(`✅ Password reset confirmation email sent to ${user.email}`);
       })

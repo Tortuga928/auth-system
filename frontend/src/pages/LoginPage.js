@@ -1,8 +1,9 @@
 /**
  * Login page component
+ * Updated with Email 2FA support (Phase 6)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../services/api';
 
@@ -16,6 +17,25 @@ function LoginPage() {
   const [mfaChallengeToken, setMfaChallengeToken] = useState('');
   const [mfaCode, setMfaCode] = useState('');
 
+  // Email 2FA specific state (Phase 6)
+  const [mfaMethod, setMfaMethod] = useState('totp'); // 'totp' or 'email'
+  const [availableMethods, setAvailableMethods] = useState([]);
+  const [backupMethod, setBackupMethod] = useState(null);
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [emailCodeExpiresAt, setEmailCodeExpiresAt] = useState(null);
+  const [deviceTrustEnabled, setDeviceTrustEnabled] = useState(false);
+  const [deviceTrustDays, setDeviceTrustDays] = useState(30);
+  const [trustDevice, setTrustDevice] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
+
+  // Countdown timer for resend button (Phase 6)
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCountdown]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -28,6 +48,22 @@ function LoginPage() {
       if (response.data.data.mfaRequired) {
         setMfaRequired(true);
         setMfaChallengeToken(response.data.data.mfaChallengeToken);
+
+        // Set Email 2FA specific data (Phase 6)
+        const data = response.data.data;
+        setMfaMethod(data.mfaMethod || 'totp');
+        setAvailableMethods(data.availableMethods || ['totp']);
+        setBackupMethod(data.backupMethod || null);
+        setEmailCodeSent(data.emailCodeSent || false);
+        setEmailCodeExpiresAt(data.emailCodeExpiresAt || null);
+        setDeviceTrustEnabled(data.deviceTrustEnabled || false);
+        setDeviceTrustDays(data.deviceTrustDays || 30);
+
+        // Start resend countdown if email code was sent
+        if (data.emailCodeSent) {
+          setResendCountdown(60);
+        }
+
         setLoading(false);
         return;
       }
@@ -48,32 +84,29 @@ function LoginPage() {
     setError('');
     setLoading(true);
 
-    console.log('🔐 [LoginPage] Starting MFA verification...');
-    console.log('🔐 [LoginPage] MFA code (raw):', mfaCode);
-    console.log('🔐 [LoginPage] Challenge token:', mfaChallengeToken?.substring(0, 20) + '...');
-
     try {
       let response;
 
-      // Check if it's a backup code (contains dash or is longer than 6 chars)
       // Sanitize input: trim whitespace and remove any non-alphanumeric characters except dash
       const sanitizedCode = mfaCode.trim().replace(/[^0-9A-Za-z-]/g, '');
 
-      console.log('🔐 [LoginPage] MFA code (sanitized):', sanitizedCode);
-
+      // Check if it's a backup code (contains dash or is longer than 6 chars)
       const isBackupCode = sanitizedCode.includes('-') || sanitizedCode.length > 6;
 
-      console.log('🔐 [LoginPage] Is backup code:', isBackupCode);
-
       if (isBackupCode) {
-        console.log('🔐 [LoginPage] Calling verifyBackupCode endpoint...');
         // Use backup code endpoint
         response = await apiService.auth.verifyBackupCode({
           mfaChallengeToken,
           backupCode: sanitizedCode.toUpperCase(),
         });
+      } else if (mfaMethod === 'email') {
+        // Use Email 2FA endpoint (Phase 6)
+        response = await apiService.auth.verifyEmailMFA({
+          mfaChallengeToken,
+          code: sanitizedCode,
+          trustDevice: trustDevice,
+        });
       } else {
-        console.log('🔐 [LoginPage] Calling verifyMFA endpoint...');
         // Use TOTP endpoint
         response = await apiService.auth.verifyMFA({
           mfaChallengeToken,
@@ -81,32 +114,64 @@ function LoginPage() {
         });
       }
 
-      console.log('✅ [LoginPage] MFA verification successful!');
-      console.log('✅ [LoginPage] Response data:', response.data);
-
       const accessToken = response.data.data.tokens.accessToken;
       const refreshToken = response.data.data.tokens.refreshToken;
-
-      console.log('💾 [LoginPage] Storing tokens in localStorage...');
-      console.log('💾 [LoginPage] Access token (first 30 chars):', accessToken?.substring(0, 30) + '...');
 
       localStorage.setItem('authToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
 
-      console.log('✅ [LoginPage] Tokens stored successfully');
-      console.log('🚀 [LoginPage] Navigating to /dashboard...');
-
       navigate('/dashboard');
-
-      console.log('✅ [LoginPage] Navigation called');
     } catch (err) {
-      console.error('❌ [LoginPage] MFA verification failed:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-      });
       setError(err.response?.data?.message || err.response?.data?.error || 'Invalid MFA code. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  // Handle resending email code (Phase 6)
+  const handleResendEmailCode = async () => {
+    if (resendCountdown > 0) return;
+
+    setError('');
+    setLoading(true);
+
+    try {
+      await apiService.auth.resendEmailMFA({ mfaChallengeToken });
+      setEmailCodeSent(true);
+      setResendCountdown(60);
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle switching MFA method (Phase 6)
+  const handleSwitchMethod = async (newMethod) => {
+    if (newMethod === mfaMethod) return;
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await apiService.auth.switchMFAMethod({
+        mfaChallengeToken,
+        method: newMethod,
+      });
+
+      setMfaMethod(newMethod);
+      setMfaCode('');
+
+      // If switching to email, code is automatically sent
+      if (newMethod === 'email') {
+        setEmailCodeSent(true);
+        setEmailCodeExpiresAt(response.data.data.emailCodeExpiresAt);
+        setResendCountdown(60);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to switch method. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
@@ -125,12 +190,18 @@ function LoginPage() {
 
   // Show MFA form if MFA is required
   if (mfaRequired) {
+    const isEmailMethod = mfaMethod === 'email';
+    const canSwitchMethod = availableMethods.length > 1;
+
     return (
       <div className="container">
         <div className="card" style={{ maxWidth: '500px', margin: '0 auto' }}>
           <h1 className="text-center">Two-Factor Authentication</h1>
           <p className="text-center" style={{ color: '#666' }}>
-            Enter the 6-digit code from your authenticator app or use a backup code
+            {isEmailMethod
+              ? 'Enter the verification code sent to your email'
+              : 'Enter the 6-digit code from your authenticator app or use a backup code'
+            }
           </p>
 
           {error && (
@@ -139,20 +210,90 @@ function LoginPage() {
             </div>
           )}
 
+          {/* Method Switcher (Phase 6) */}
+          {canSwitchMethod && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                {availableMethods.includes('totp') && (
+                  <button
+                    type="button"
+                    className={`btn ${mfaMethod === 'totp' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => handleSwitchMethod('totp')}
+                    disabled={loading}
+                    style={{ flex: 1 }}
+                  >
+                    🔑 Authenticator App
+                  </button>
+                )}
+                {availableMethods.includes('email') && (
+                  <button
+                    type="button"
+                    className={`btn ${mfaMethod === 'email' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => handleSwitchMethod('email')}
+                    disabled={loading}
+                    style={{ flex: 1 }}
+                  >
+                    📧 Email Code
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleMfaSubmit} className="mt-3">
             <div className="form-group">
-              <label className="form-label" htmlFor="mfaCode">Verification Code</label>
+              <label className="form-label" htmlFor="mfaCode">
+                {isEmailMethod ? 'Email Verification Code' : 'Verification Code'}
+              </label>
               <input
                 type="text"
                 id="mfaCode"
                 className="form-control"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
-                placeholder="Enter 6-digit code or backup code"
+                placeholder={isEmailMethod ? 'Enter code from email' : 'Enter 6-digit code or backup code'}
                 required
                 autoFocus
+                maxLength={isEmailMethod ? 6 : 20}
               />
             </div>
+
+            {/* Email code resend option (Phase 6) */}
+            {isEmailMethod && emailCodeSent && (
+              <div style={{ marginBottom: '15px', textAlign: 'center' }}>
+                <p style={{ fontSize: '14px', color: '#666', margin: '0 0 10px 0' }}>
+                  Code sent to your registered email address
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-link"
+                  onClick={handleResendEmailCode}
+                  disabled={loading || resendCountdown > 0}
+                  style={{ padding: '0' }}
+                >
+                  {resendCountdown > 0
+                    ? `Resend code in ${resendCountdown}s`
+                    : 'Resend code'
+                  }
+                </button>
+              </div>
+            )}
+
+            {/* Trust device checkbox (Phase 6) */}
+            {deviceTrustEnabled && (
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={trustDevice}
+                    onChange={(e) => setTrustDevice(e.target.checked)}
+                  />
+                  <span style={{ fontSize: '14px', color: '#666' }}>
+                    Trust this device for {deviceTrustDays} days
+                  </span>
+                </label>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -168,7 +309,11 @@ function LoginPage() {
             <button
               type="button"
               className="btn btn-link"
-              onClick={() => setMfaRequired(false)}
+              onClick={() => {
+                setMfaRequired(false);
+                setMfaCode('');
+                setTrustDevice(false);
+              }}
             >
               ← Back to login
             </button>

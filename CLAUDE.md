@@ -22,37 +22,206 @@
 
 ---
 
-## 🔄 Session Recovery
+## Session Recovery
 
-**⚠️ IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
+**IMPORTANT**: If resuming work after a session interruption, **READ THIS FIRST**:
 
-**Current Active Work**: Archive User Feature COMPLETE - Ready for beta testing
+**Current Active Work**: Email Templates Implementation - **COMPLETE (8/8 tests passed)**
+**Current Branch**: `staging`
 
-📄 **Session Status**: [SESSION_CURRENT_STATUS.md](./SESSION_CURRENT_STATUS.md) - Current work and recovery
-📄 **Phase 10 Documentation**: [docs/PHASE_10_PLAN.md](./docs/PHASE_10_PLAN.md) - Complete phase plan
-📄 **Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
-📄 **Beta Environment**: https://auth-frontend-beta.onrender.com
+**Session Status**: [SESSION_CURRENT_STATUS.md](./SESSION_CURRENT_STATUS.md) - Current work and recovery
+**Enhancement Plan**: [docs/SEND_TEST_EMAIL_ENHANCEMENT.md](./docs/SEND_TEST_EMAIL_ENHANCEMENT.md) - Feature specification
+**Phase 10 Documentation**: [docs/PHASE_10_PLAN.md](./docs/PHASE_10_PLAN.md) - Complete phase plan
+**Beta Branch Documentation**: [docs/BETA_BRANCH_SETUP.md](./docs/BETA_BRANCH_SETUP.md)
+**Beta Environment**: https://auth-frontend-beta.onrender.com
 
-**Current Status** (November 26, 2025 - Session 8 Complete):
-- ✅ **Phase 7 Complete** - All MFA features (Stories 7.1-7.5) - 100% tested in beta
-- ✅ **Phase 8 Complete** - User Dashboard & Profile Management (6/6 stories, 100%)
-- ✅ **Phase 9 Complete** - Session Management & Security (5/5 stories, 100%)
-- ✅ **Phase 10 Complete** - Admin Panel (6/6 stories, 100% complete)
-- ✅ **Phase 11 COMPLETE** - Testing & Documentation (6/6 stories, 100%)
-- ✅ **Email Service Configuration Feature** (5/6 phases complete)
-  - ✅ Phase 1: Database Schema & Backend Foundation
-  - ✅ Phase 2: Email Service Backend API
-  - ✅ Phase 3: Email Verification Enforcement Logic
-  - ✅ Phase 4: Settings UI - Structure & Navigation
-  - ✅ Phase 5: Email Settings UI
-  - ⏳ Phase 6: Integration Testing & Documentation (PENDING)
-- ✅ **NEW: Archive User Feature** (COMPLETE - 22/22 tests passed)
-  - Replaced Delete User with Archive User
-  - Added Restore User functionality
-  - Added Anonymize Data (GDPR) for Super Admin
-  - Filter dropdown: Active/Inactive/Archived/All
+**Current Status** (December 7, 2025 - Email Templates Implementation COMPLETE):
 
-**Next Step**: Merge staging to beta for testing, then Phase 6 integration testing
+### ✅ Session 8 Work - December 7, 2025 (COMPLETE)
+
+**Email Templates Implementation - 8/8 Tests Passed (100%)**
+
+Implemented all 7 unprogrammed email templates using database-stored templateEmailService:
+
+| Template | Trigger | Status |
+|----------|---------|--------|
+| email_2fa_verification | MFA login | ✅ Working |
+| password_changed | Password change/reset | ✅ Working |
+| account_locked | Failed MFA attempts | ✅ Working |
+| new_device_login | New device detected | ✅ Working |
+| backup_codes_generated | Backup codes regenerated | ✅ Working |
+| account_deactivation | Account deleted | ✅ Working |
+| welcome_email | New registration | ✅ Working |
+
+**Files Modified:**
+- backend/src/controllers/authController.js (2FA fix, welcome email, password reset)
+- backend/src/services/mfaEmailSender.js (use templateEmailService)
+- backend/src/controllers/userController.js (password changed, account deactivation)
+- backend/src/controllers/adminController.js (password changed, account deactivation)
+- backend/src/services/email2FAService.js (account locked)
+- backend/src/utils/securityDetection.js (new device login)
+- backend/src/controllers/mfaController.js (backup codes generated)
+- backend/src/controllers/email2FAController.js (removed duplicate lockout code)
+
+**Note**: AWS SES is in sandbox mode - test emails only work with verified addresses (MSTortuga7@outlook.com)
+
+---
+
+### ✅ Session 7 Work - December 1, 2025 (COMPLETE)
+
+**Part 1: MFA Settings Bug Fixes**
+1. Rewrote mfaEnforcementService.js from Knex to raw SQL
+2. Added enforcement fields to MFAConfig.js allowedFields
+3. Added exempt_from_mfa to MFARoleConfig.js
+4. Fixed API response parsing for config and roleConfigs
+- **Commit**: f6c9ad0
+
+**Part 2: Role MFA Dropdowns & Summary Table**
+- Replaced non-functional Role MFA checkboxes with Enabled/Disabled dropdowns
+- Added pending changes tracking with yellow highlight
+- Added "Save All Changes" button with confirmation dialog
+- Added Role Details table to MFA Summary (shows when Role-Based MFA enabled)
+- Table columns: Role, MFA Status, Methods, Grace Period, Users
+- **Commit**: 2ba2a0d
+
+**Test Results**: 83% pass rate (24/29 tests)
+
+---
+
+### 🔄 MFA Setup Enforcement Feature - **TESTING IN PROGRESS (Phase 11)**
+
+**Feature**: Mandatory MFA setup enforcement for all users with:
+- New users must set up MFA immediately after email verification
+- Existing users receive configurable grace period (1-90 days)
+- Role-based exemptions
+- Admin controls for enabling/disabling enforcement
+
+**Implementation Status: 10/11 Phases Complete**
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Database Schema Updates | ✅ Complete |
+| 2 | Backend - MFA Enforcement Service | ✅ Complete |
+| 3 | Backend - Auth Controller Updates | ✅ Complete |
+| 4 | Backend - MFA Setup Endpoint Updates | ✅ Complete |
+| 5 | Backend - Admin MFA Config Updates | ✅ Complete |
+| 6 | Frontend - Registration Success Modal | ✅ Complete |
+| 7 | Frontend - Login Page Updates | ✅ Complete |
+| 8 | Frontend - MFA Required Setup Page | ✅ Complete |
+| 9 | Frontend - Grace Period Warning Banner | ✅ Complete |
+| 10 | Frontend - MFA Settings Admin UI Updates | ✅ Complete |
+| 11 | Testing & Verification | 🔄 **IN PROGRESS** |
+
+**Files Created:**
+- `backend/src/db/migrations/20251130000001_add_mfa_enforcement.js`
+- `backend/src/services/mfaEnforcementService.js`
+- `frontend/src/pages/MFARequiredSetupPage.js`
+- `frontend/src/components/GracePeriodWarningBanner.js`
+
+**Files Modified:**
+- `backend/src/controllers/authController.js`
+- `backend/src/controllers/mfaController.js`
+- `backend/src/controllers/mfaAdminController.js`
+- `backend/src/routes/mfa.js`
+- `backend/src/routes/mfaAdmin.js`
+- `frontend/src/pages/RegisterPage.js`
+- `frontend/src/pages/LoginPage.js`
+- `frontend/src/pages/DashboardPage.js`
+- `frontend/src/pages/admin/MFASettings.jsx`
+- `frontend/src/services/api.js`
+- `frontend/src/services/adminApi.js`
+- `frontend/src/App.js`
+
+**To Resume - Phase 11 Testing:**
+```bash
+cd /c/Users/MSTor/Projects/auth-system
+git status
+docker-compose up -d
+docker-compose exec backend npm run migrate
+```
+
+**Test Steps:**
+1. Login as super admin (testsuperadmin@example.com / Test123!)
+2. Go to Admin > MFA Settings > Enforcement tab
+3. Click "Enable Enforcement" with desired grace period
+4. Register a new user → verify email → login → should redirect to MFA setup
+5. Login as existing user without MFA → should see grace period banner
+
+---
+
+### Previous Completed Work (November 30, 2025)
+- ✅ **MFA Summary Tab Enhancement** - **COMPLETE (commit d48eb0f)**
+- ✅ **Email Templates Tab Bug Fix** - **COMPLETE (commit 0c4543f)**
+- ✅ **Settings Sidebar Bug Fix** - **COMPLETE (commit d3dfe9a)**
+- ✅ **MFA Settings Comprehensive Bug Fix** - **COMPLETE (commit 5bcfe57)**
+- ✅ **Admin UI Filter/Sort Bug Fix** - **COMPLETE (commit 93feb97)**
+- ✅ **Backend Case-Insensitive Sort Fix** - **COMPLETE (commit a9751bb)**
+- ✅ **Send Test Email Enhancement** - **COMPLETE (commit e50bf5f)**
+- ✅ **Amazon SES Email Configuration** - **COMPLETE**
+- ✅ **Email Verification Bug Fix** - **COMPLETE (commit 18e39ed)**
+- ✅ **Email 2FA Enhancement Feature** - **COMPLETE (6/6 phases - 100%)**
+- ✅ **Phase 7-11 Complete** - All previous phases deployed to beta
+- ✅ **Archive User Feature** - COMPLETE (22/22 tests passed)
+
+**Next Steps** (After MFA Enforcement Testing):
+1. **Test MFA Enforcement** - Run Phase 11 testing steps above
+2. **Commit all changes** - After testing passes
+3. **Merge to staging** - Prepare for beta deployment
+4. **Deploy to Beta** - Test with real environment
+
+**Email Configuration** (Amazon SES - us-east-1):
+```
+SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<AWS SES SMTP username>
+SMTP_PASS=<AWS SES SMTP password>
+FROM_EMAIL=noreply@nleos.com
+FROM_NAME=Auth System
+```
+
+**Most Recent Work** (November 30, 2025 - Session 6):
+
+**Session 6 - Send Test Email Enhancement (COMPLETE)**:
+
+**Feature**: Added "Send Test Email" button for users and admins to verify email delivery
+
+**Implementation**:
+1. **Backend**
+   - Created emailTestService.js with branded HTML test email template
+   - Added POST /api/user/test-email with rate limiting (30s cooldown, 25/day)
+   - Added POST /api/admin/users/:id/test-email (no rate limits for admins)
+   - Integrated activity logging (users) and audit logging (admins)
+
+2. **Frontend**
+   - Created TestEmailModal.jsx component (loading/success/error states)
+   - Added "Send Test Email" button to Dashboard Quick Actions
+   - Added 📧 button to UsersManagement table actions
+   - Added "Send Test Email" button to UserDetailPage
+   - Admin mode shows Message ID for debugging
+
+3. **Files Created**:
+   - backend/src/services/emailTestService.js
+   - frontend/src/components/TestEmailModal.jsx
+
+4. **Files Modified**:
+   - backend/src/routes/user.js
+   - backend/src/routes/admin.js
+   - backend/src/middleware/rateLimiter.js
+   - frontend/src/services/api.js
+   - frontend/src/services/adminApi.js
+   - frontend/src/pages/DashboardPage.js
+   - frontend/src/pages/admin/UsersManagement.jsx
+   - frontend/src/pages/admin/UserDetailPage.jsx
+
+**Commit**: e50bf5f - feat(email): add Send Test Email enhancement
+**Branch**: staging
+**Status**: ✅ COMPLETE - UI tested and working
+
+**Test URLs**:
+- User Dashboard: http://localhost:3000/dashboard → Quick Actions → "Send Test Email"
+- Admin Users: http://localhost:3000/admin/users → 📧 button per row
+- Admin User Detail: http://localhost:3000/admin/users/:id → "Send Test Email" button
 
 **Most Recent Work** (Phase 11 Story 11.1 - Nov 19, 2025 Session 3):
 
@@ -1145,6 +1314,6 @@ When the user says they want to start a new phase or user story from PROJECT_ROA
 
 ---
 
-*Last Updated: November 26, 2025*
-*Version: 2.1*
-*Current Phase: 11 COMPLETE + Archive User Feature - Ready for beta testing*
+*Last Updated: November 30, 2025*
+*Version: 2.6*
+*Current Status: MFA Enforcement Feature - Implementation Complete, Testing Phase*
