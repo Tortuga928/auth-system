@@ -15,6 +15,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import adminApi from '../../services/adminApi';
+import EmailTemplateEditModal from '../../components/admin/EmailTemplateEditModal';
+import EmailTemplatePreviewModal from '../../components/admin/EmailTemplatePreviewModal';
 
 // MFA Mode descriptions with detailed impact information
 const MFA_MODES = {
@@ -175,6 +177,12 @@ const MFASettings = () => {
   // Role MFA changes state
   const [pendingRoleChanges, setPendingRoleChanges] = useState({});
   const [showRoleSaveConfirm, setShowRoleSaveConfirm] = useState(false);
+
+  // Email template modal state
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Fetch all MFA configuration data
   const fetchData = useCallback(async () => {
@@ -1671,54 +1679,151 @@ const MFASettings = () => {
       )}
 
       {/* Email Templates Tab */}
-      {activeTab === 'templates' && (
+            {activeTab === 'templates' && (
         <>
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>
               <span>📝</span> Email Templates
             </h3>
             <p style={styles.helpText}>
-              Customize the email templates sent for MFA verification.
+              Manage all system email templates. Each template has a plain text and branded HTML version.
             </p>
 
-            <div style={{ marginTop: '20px' }}>
-              {['login_verification', 'setup_verification', 'alternate_email_verification'].map((templateType) => {
-                const template = templates.find(t => t.template_type === templateType);
-                return (
-                  <div
-                    key={templateType}
-                    style={{
-                      ...styles.modeCard,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div>
-                      <div style={styles.modeLabel}>
-                        {templateType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                      </div>
-                      <div style={styles.modeDescription}>
-                        {template?.subject || 'Default template'}
-                      </div>
+            {/* Reset All Button */}
+            <div style={{ marginBottom: '20px', textAlign: 'right' }}>
+              <button
+                style={{
+                  ...styles.button,
+                  backgroundColor: '#dc3545',
+                  color: '#fff',
+                }}
+                onClick={async () => {
+                  if (window.confirm('Are you sure you want to reset ALL templates to their defaults? This cannot be undone.')) {
+                    try {
+                      await adminApi.resetAllEmailTemplates();
+                      await fetchData();
+                      setSuccessMessage('All templates reset to defaults');
+                    } catch (err) {
+                      setError('Failed to reset templates');
+                    }
+                  }
+                }}
+              >
+                Reset All Templates
+              </button>
+            </div>
+
+            {/* Templates List */}
+            <div style={{ marginTop: '10px' }}>
+              {templates.map((template) => (
+                <div
+                  key={template.template_key}
+                  style={{
+                    ...styles.modeCard,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ ...styles.modeLabel, marginBottom: '4px' }}>
+                      {template.display_name}
                     </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button
-                        style={{ ...styles.button, ...styles.secondaryButton }}
-                        onClick={() => {/* TODO: Open template editor */}}
+                    <div style={{ ...styles.modeDescription, fontSize: '12px', color: '#666' }}>
+                      {template.description}
+                    </div>
+                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: '500',
+                        backgroundColor: template.active_version === 'branded' ? '#e3f2fd' : '#f5f5f5',
+                        color: template.active_version === 'branded' ? '#1565c0' : '#666',
+                      }}>
+                        {template.active_version === 'branded' ? 'Branded' : 'Plain Text'}
+                      </span>
+                      <select
+                        value={template.active_version}
+                        onChange={async (e) => {
+                          try {
+                            await adminApi.setEmailTemplateVersion(template.template_key, e.target.value);
+                            await fetchData();
+                            setSuccessMessage(`Template "${template.display_name}" set to ${e.target.value}`);
+                          } catch (err) {
+                            setError('Failed to update template version');
+                          }
+                        }}
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #ddd',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                        }}
                       >
-                        Edit
-                      </button>
-                      <button
-                        style={{ ...styles.button, ...styles.secondaryButton }}
-                        onClick={() => {/* TODO: Preview template */}}
-                      >
-                        Preview
-                      </button>
+                        <option value="plain">Plain Text</option>
+                        <option value="branded">Branded HTML</option>
+                      </select>
                     </div>
                   </div>
-                );
-              })}
+                  <div style={{ display: 'flex', gap: '8px', marginLeft: '15px' }}>
+                    <button
+                      style={{
+                        ...styles.button,
+                        ...styles.secondaryButton,
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                      }}
+                      onClick={() => {
+                        setEditingTemplate(template);
+                        setShowTemplateModal(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      style={{
+                        ...styles.button,
+                        ...styles.secondaryButton,
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                      }}
+                      onClick={() => {
+                        setPreviewTemplate(template);
+                        setShowPreviewModal(true);
+                      }}
+                    >
+                      Preview
+                    </button>
+                    <button
+                      style={{
+                        ...styles.button,
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        backgroundColor: '#f8f9fa',
+                        color: '#666',
+                        border: '1px solid #ddd',
+                      }}
+                      onClick={async () => {
+                        if (window.confirm(`Reset "${template.display_name}" to defaults?`)) {
+                          try {
+                            await adminApi.resetEmailTemplate(template.template_key);
+                            await fetchData();
+                            setSuccessMessage(`Template "${template.display_name}" reset to defaults`);
+                          } catch (err) {
+                            setError('Failed to reset template');
+                          }
+                        }
+                      }}
+                      title="Reset to default"
+                    >
+                      ↺
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </>
@@ -2080,6 +2185,33 @@ const MFASettings = () => {
         }}>
           Saving...
         </div>
+      )}
+
+      {/* Email Template Edit Modal */}
+      {showTemplateModal && editingTemplate && (
+        <EmailTemplateEditModal
+          template={editingTemplate}
+          onClose={() => {
+            setShowTemplateModal(false);
+            setEditingTemplate(null);
+          }}
+          onSave={() => {
+            fetchData();
+            setSuccessMessage('Template updated successfully');
+            setTimeout(() => setSuccessMessage(null), 3000);
+          }}
+        />
+      )}
+
+      {/* Email Template Preview Modal */}
+      {showPreviewModal && previewTemplate && (
+        <EmailTemplatePreviewModal
+          template={previewTemplate}
+          onClose={() => {
+            setShowPreviewModal(false);
+            setPreviewTemplate(null);
+          }}
+        />
       )}
     </AdminLayout>
   );

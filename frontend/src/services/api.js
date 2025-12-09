@@ -108,6 +108,18 @@ const apiService = {
     // User preferences
     getPreferences: () => api.get('/api/auth/mfa/preferences'),
     updatePreferences: (data) => api.put('/api/auth/mfa/preferences', data),
+    // MFA Enforcement endpoints (for required setup flow)
+    getEnforcementStatus: (token) => api.get('/api/auth/mfa/enforcement-status', {
+      headers: { 'x-mfa-setup-token': token },
+    }),
+    completeRequiredSetup: (data) => api.post('/api/auth/mfa/complete-required-setup', data),
+    // Setup with token (for required MFA setup without auth)
+    setupWithToken: (token) => api.post('/api/auth/mfa/setup', {}, {
+      headers: { 'x-mfa-setup-token': token },
+    }),
+    enableWithToken: (token, totpCode) => api.post('/api/auth/mfa/enable', { token: totpCode }, {
+      headers: { 'x-mfa-setup-token': token },
+    }),
   },
 
   // User endpoints (to be implemented)

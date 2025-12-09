@@ -16,11 +16,12 @@
 
 const MFAConfig = require('../models/MFAConfig');
 const MFARoleConfig = require('../models/MFARoleConfig');
-const MFAEmailTemplate = require('../models/MFAEmailTemplate');
+const EmailTemplate = require('../models/EmailTemplate');
 const UserMFAPreferences = require('../models/UserMFAPreferences');
 const Email2FACode = require('../models/Email2FACode');
 const AuditLog = require('../models/AuditLog');
 const db = require('../db');
+const mfaEnforcementService = require('../services/mfaEnforcementService');
 
 /**
  * Get current MFA configuration
@@ -214,13 +215,14 @@ const updateMFARoleConfig = async (req, res) => {
  */
 const getEmailTemplate = async (req, res) => {
   try {
-    const templates = await MFAEmailTemplate.getAll();
-    const activeTemplate = templates.find(t => t.is_active);
+    const templates = await EmailTemplate.getAll();
+    // For MFA context, get the email_2fa_verification template
+    const mfaTemplate = templates.find(t => t.template_key === 'email_2fa_verification');
 
     res.json({
       success: true,
       data: {
-        activeTemplate,
+        activeTemplate: mfaTemplate,
         templates,
       },
     });
@@ -236,14 +238,15 @@ const getEmailTemplate = async (req, res) => {
 
 /**
  * Update email template
- * PUT /api/admin/mfa/email-template/:id
+ * PUT /api/admin/mfa/email-template/:key
  */
 const updateEmailTemplate = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id: key } = req.params; // key can be template_key or id
     const updates = req.body;
 
-    const template = await MFAEmailTemplate.update(parseInt(id), updates);
+    // Try to update by key (new model uses key)
+    const template = await EmailTemplate.updateByKey(key, updates);
 
     // Log the change
     await AuditLog.create({
@@ -251,7 +254,7 @@ const updateEmailTemplate = async (req, res) => {
       admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_UPDATE',
       target_type: 'email_template',
-      target_id: parseInt(id),
+      target_id: key,
       details: { updates },
       ip_address: req.ip,
       user_agent: req.get('User-Agent'),
@@ -273,14 +276,15 @@ const updateEmailTemplate = async (req, res) => {
 };
 
 /**
- * Set active email template
- * POST /api/admin/mfa/email-template/:id/activate
+ * Set active email template version
+ * POST /api/admin/mfa/email-template/:key/activate
  */
 const activateEmailTemplate = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id: key } = req.params;
+    const { version } = req.body; // 'plain' or 'branded'
 
-    const template = await MFAEmailTemplate.setActive(parseInt(id));
+    const template = await EmailTemplate.setActiveVersion(key, version || 'branded');
 
     // Log the change
     await AuditLog.create({
@@ -288,15 +292,15 @@ const activateEmailTemplate = async (req, res) => {
       admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_ACTIVATE',
       target_type: 'email_template',
-      target_id: parseInt(id),
-      details: { action: 'activate' },
+      target_id: key,
+      details: { action: 'activate', version },
       ip_address: req.ip,
       user_agent: req.get('User-Agent'),
     });
 
     res.json({
       success: true,
-      message: 'Email template activated',
+      message: 'Email template version activated',
       data: { template },
     });
   } catch (error) {
@@ -315,12 +319,11 @@ const activateEmailTemplate = async (req, res) => {
  */
 const previewEmailTemplate = async (req, res) => {
   try {
-    const { templateId, testEmail } = req.body;
+    const { templateKey, testEmail } = req.body;
 
-    // Get the template
-    const template = templateId
-      ? await MFAEmailTemplate.getById(templateId)
-      : await MFAEmailTemplate.getActive();
+    // Get the template - use email_2fa_verification as default for MFA
+    const key = templateKey || 'email_2fa_verification';
+    const template = await EmailTemplate.getByKey(key);
 
     if (!template) {
       return res.status(404).json({
@@ -336,11 +339,12 @@ const previewEmailTemplate = async (req, res) => {
     const testCode = Email2FACode.generateCode(config.code_format);
 
     // Render the template
-    const rendered = MFAEmailTemplate.render(template, {
+    const rendered = EmailTemplate.render(template, {
       code: testCode,
       expiry_minutes: config.code_expiration_minutes,
       app_name: template.app_name || 'Auth System',
       user_email: testEmail || req.user.email,
+      username: req.user.username || req.user.email.split('@')[0],
     });
 
     // TODO: Actually send the email using EmailService when integrated
@@ -372,7 +376,15 @@ const previewEmailTemplate = async (req, res) => {
  */
 const resetEmailTemplates = async (req, res) => {
   try {
-    await MFAEmailTemplate.resetToDefaults();
+    const { templateKey } = req.body;
+
+    if (templateKey) {
+      // Reset single template
+      await EmailTemplate.resetSingle(templateKey);
+    } else {
+      // Reset all templates
+      await EmailTemplate.resetAll();
+    }
 
     // Log the reset
     await AuditLog.create({
@@ -380,17 +392,17 @@ const resetEmailTemplates = async (req, res) => {
       admin_email: req.user.email,
       action: 'MFA_EMAIL_TEMPLATE_RESET',
       target_type: 'email_template',
-      target_id: null,
-      details: { action: 'reset_to_defaults' },
+      target_id: templateKey || 'all',
+      details: { action: 'reset_to_defaults', templateKey },
       ip_address: req.ip,
       user_agent: req.get('User-Agent'),
     });
 
-    const templates = await MFAEmailTemplate.getAll();
+    const templates = await EmailTemplate.getAll();
 
     res.json({
       success: true,
-      message: 'Email templates reset to defaults',
+      message: templateKey ? `Template '${templateKey}' reset to defaults` : 'All email templates reset to defaults',
       data: { templates },
     });
   } catch (error) {
@@ -567,8 +579,9 @@ const getMFASummary = async (req, res) => {
     // Get current configuration
     const config = await MFAConfig.get();
     const roleConfigs = await MFARoleConfig.getAll();
-    const templates = await MFAEmailTemplate.getAll();
-    const activeTemplate = templates.find(t => t.is_active);
+    const templates = await EmailTemplate.getAll();
+    // Get the email_2fa_verification template for MFA context
+    const activeTemplate = templates.find(t => t.template_key === 'email_2fa_verification');
 
     // Get user statistics
     const userStatsQuery = `
@@ -780,6 +793,411 @@ const getMFASummary = async (req, res) => {
   }
 };
 
+/**
+ * Enable MFA enforcement
+ * POST /api/admin/mfa/enforcement/enable
+ */
+const enableEnforcement = async (req, res) => {
+  try {
+    const { gracePeriodDays } = req.body;
+
+    // Validate grace period
+    const days = parseInt(gracePeriodDays) || 14;
+    if (days < 1 || days > 90) {
+      return res.status(400).json({
+        success: false,
+        error: 'Grace period must be between 1 and 90 days',
+      });
+    }
+
+    // Get current config to check if already enabled
+    const currentConfig = await MFAConfig.get();
+    if (currentConfig.mfa_enforcement_enabled) {
+      return res.status(400).json({
+        success: false,
+        error: 'MFA enforcement is already enabled',
+      });
+    }
+
+    // Update config to enable enforcement
+    await MFAConfig.update({
+      mfa_enforcement_enabled: true,
+      enforcement_grace_period_days: days,
+      enforcement_started_at: new Date().toISOString(),
+    });
+
+    // Apply grace period to all existing users who do not have MFA set up
+    const affectedUsers = await mfaEnforcementService.applyGracePeriodToExistingUsers(days);
+
+    // Log the action
+    await AuditLog.create({
+      admin_id: req.user.id,
+      admin_email: req.user.email,
+      action: 'MFA_ENFORCEMENT_ENABLED',
+      target_type: 'system',
+      target_id: null,
+      details: {
+        gracePeriodDays: days,
+        affectedUsers: affectedUsers.length,
+      },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+    });
+
+    res.json({
+      success: true,
+      message: 'MFA enforcement enabled successfully',
+      data: {
+        gracePeriodDays: days,
+        enforcementStartedAt: new Date().toISOString(),
+        affectedUsers: affectedUsers.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error enabling MFA enforcement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enable MFA enforcement',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Disable MFA enforcement
+ * POST /api/admin/mfa/enforcement/disable
+ */
+const disableEnforcement = async (req, res) => {
+  try {
+    // Get current config
+    const currentConfig = await MFAConfig.get();
+    if (!currentConfig.mfa_enforcement_enabled) {
+      return res.status(400).json({
+        success: false,
+        error: 'MFA enforcement is already disabled',
+      });
+    }
+
+    // Update config to disable enforcement
+    await MFAConfig.update({
+      mfa_enforcement_enabled: false,
+    });
+
+    // Log the action
+    await AuditLog.create({
+      admin_id: req.user.id,
+      admin_email: req.user.email,
+      action: 'MFA_ENFORCEMENT_DISABLED',
+      target_type: 'system',
+      target_id: null,
+      details: { action: 'disable_enforcement' },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+    });
+
+    res.json({
+      success: true,
+      message: 'MFA enforcement disabled successfully',
+    });
+  } catch (error) {
+    console.error('Error disabling MFA enforcement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to disable MFA enforcement',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Update grace period for MFA enforcement
+ * PUT /api/admin/mfa/enforcement/grace-period
+ */
+const updateGracePeriod = async (req, res) => {
+  try {
+    const { gracePeriodDays, applyToExisting } = req.body;
+
+    // Validate grace period
+    const days = parseInt(gracePeriodDays);
+    if (!days || days < 1 || days > 90) {
+      return res.status(400).json({
+        success: false,
+        error: 'Grace period must be between 1 and 90 days',
+      });
+    }
+
+    // Update config
+    await MFAConfig.update({
+      enforcement_grace_period_days: days,
+    });
+
+    let affectedUsers = [];
+    if (applyToExisting) {
+      // Recalculate grace periods for users still in grace period
+      affectedUsers = await mfaEnforcementService.applyGracePeriodToExistingUsers(days);
+    }
+
+    // Log the action
+    await AuditLog.create({
+      admin_id: req.user.id,
+      admin_email: req.user.email,
+      action: 'MFA_GRACE_PERIOD_UPDATE',
+      target_type: 'system',
+      target_id: null,
+      details: {
+        gracePeriodDays: days,
+        applyToExisting: applyToExisting || false,
+        affectedUsers: affectedUsers.length,
+      },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+    });
+
+    res.json({
+      success: true,
+      message: 'Grace period updated successfully',
+      data: {
+        gracePeriodDays: days,
+        affectedUsers: affectedUsers.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating grace period:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update grace period',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get enforcement statistics
+ * GET /api/admin/mfa/enforcement/stats
+ */
+const getEnforcementStats = async (req, res) => {
+  try {
+    const stats = await mfaEnforcementService.getEnforcementStatistics();
+    const config = await MFAConfig.get();
+
+    res.json({
+      success: true,
+      data: {
+        enforcementEnabled: config.mfa_enforcement_enabled,
+        gracePeriodDays: config.enforcement_grace_period_days,
+        enforcementStartedAt: config.enforcement_started_at,
+        ...stats,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting enforcement stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get enforcement statistics',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Update role exemption from MFA enforcement
+ * PUT /api/admin/mfa/enforcement/role-exemption/:role
+ */
+const updateRoleExemption = async (req, res) => {
+  try {
+    const { role } = req.params;
+    const { exempt } = req.body;
+
+    // Validate role
+    if (!MFARoleConfig.VALID_ROLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid role. Must be one of: ${MFARoleConfig.VALID_ROLES.join(', ')}`,
+      });
+    }
+
+    // Update role config
+    await MFARoleConfig.update(role, { exempt_from_mfa: exempt === true });
+
+    // Log the action
+    await AuditLog.create({
+      admin_id: req.user.id,
+      admin_email: req.user.email,
+      action: 'MFA_ROLE_EXEMPTION_UPDATE',
+      target_type: 'role',
+      target_id: null,
+      details: {
+        role,
+        exempt: exempt === true,
+      },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+    });
+
+    res.json({
+      success: true,
+      message: `Role ${role} ${exempt ? 'exempted from' : 'no longer exempted from'} MFA enforcement`,
+      data: {
+        role,
+        exempt: exempt === true,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating role exemption:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update role exemption',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get users with pending MFA setup (enforcement view)
+ * GET /api/admin/mfa/enforcement/pending-users
+ */
+const getPendingMFAUsers = async (req, res) => {
+  try {
+    const { status } = req.query; // 'all', 'grace_period', 'expired'
+
+    let whereClause = 'WHERE u.mfa_setup_required = true AND u.mfa_setup_completed = false AND u.is_active = true';
+    if (status === 'grace_period') {
+      whereClause += ' AND u.mfa_grace_period_end > NOW()';
+    } else if (status === 'expired') {
+      whereClause += ' AND (u.mfa_grace_period_end IS NULL OR u.mfa_grace_period_end <= NOW())';
+    }
+
+    const query = `
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.role,
+        u.mfa_grace_period_start,
+        u.mfa_grace_period_end,
+        u.created_at,
+        CASE
+          WHEN u.mfa_grace_period_end IS NULL THEN 'no_grace_period'
+          WHEN u.mfa_grace_period_end > NOW() THEN 'in_grace_period'
+          ELSE 'grace_period_expired'
+        END as grace_status,
+        CASE
+          WHEN u.mfa_grace_period_end > NOW()
+          THEN EXTRACT(EPOCH FROM (u.mfa_grace_period_end - NOW())) / 86400
+          ELSE 0
+        END as days_remaining
+      FROM users u
+      ${whereClause}
+      ORDER BY u.mfa_grace_period_end ASC NULLS FIRST
+    `;
+
+    const result = await db.query(query);
+
+    res.json({
+      success: true,
+      data: {
+        users: result.rows.map(row => ({
+          id: row.id,
+          username: row.username,
+          email: row.email,
+          role: row.role,
+          gracePeriodStart: row.mfa_grace_period_start,
+          gracePeriodEnd: row.mfa_grace_period_end,
+          createdAt: row.created_at,
+          graceStatus: row.grace_status,
+          daysRemaining: Math.max(0, Math.ceil(parseFloat(row.days_remaining) || 0)),
+        })),
+        count: result.rows.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error getting pending MFA users:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get pending MFA users',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Grant grace period extension to a user
+ * POST /api/admin/mfa/enforcement/extend-grace/:userId
+ */
+const extendUserGracePeriod = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { additionalDays } = req.body;
+
+    // Validate days
+    const days = parseInt(additionalDays);
+    if (!days || days < 1 || days > 30) {
+      return res.status(400).json({
+        success: false,
+        error: 'Additional days must be between 1 and 30',
+      });
+    }
+
+    // Get user
+    const userQuery = 'SELECT * FROM users WHERE id = $1';
+    const userResult = await db.query(userQuery, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Calculate new grace period end
+    const currentEnd = user.mfa_grace_period_end ? new Date(user.mfa_grace_period_end) : new Date();
+    const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+    const newEnd = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+    // Update user
+    const updateQuery = `
+      UPDATE users
+      SET mfa_grace_period_end = $1
+      WHERE id = $2
+      RETURNING *
+    `;
+    await db.query(updateQuery, [newEnd.toISOString(), userId]);
+
+    // Log the action
+    await AuditLog.create({
+      admin_id: req.user.id,
+      admin_email: req.user.email,
+      action: 'MFA_GRACE_PERIOD_EXTENDED',
+      target_type: 'user',
+      target_id: parseInt(userId),
+      details: {
+        additionalDays: days,
+        newGracePeriodEnd: newEnd.toISOString(),
+      },
+      ip_address: req.ip,
+      user_agent: req.get('User-Agent'),
+    });
+
+    res.json({
+      success: true,
+      message: `Grace period extended by ${days} days`,
+      data: {
+        userId: parseInt(userId),
+        newGracePeriodEnd: newEnd.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error extending grace period:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to extend grace period',
+      details: error.message,
+    });
+  }
+};
+
 module.exports = {
   // Summary endpoint
   getMFASummary,
@@ -807,4 +1225,13 @@ module.exports = {
 
   // User MFA management
   unlockUserMFA,
+
+  // MFA Enforcement endpoints
+  enableEnforcement,
+  disableEnforcement,
+  updateGracePeriod,
+  getEnforcementStats,
+  updateRoleExemption,
+  getPendingMFAUsers,
+  extendUserGracePeriod,
 };

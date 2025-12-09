@@ -27,6 +27,7 @@ const settingsRoutes = require('./routes/settings');
 const mfaAdminRoutes = require('./routes/mfaAdmin');
 const email2faRoutes = require('./routes/email2fa');
 const testEmailRoutes = require('./routes/test-email');
+const emailTemplatesRoutes = require('./routes/emailTemplates');
 
 // Create Express app
 const app = express();
@@ -92,6 +93,7 @@ app.use('/api/security', securityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/admin/mfa', mfaAdminRoutes);
+app.use('/api/admin/email-templates', emailTemplatesRoutes);
 app.use('/api/auth/mfa', email2faRoutes);
 
 // Test routes (development only)

@@ -43,14 +43,30 @@ function LoginPage() {
 
     try {
       const response = await apiService.auth.login({ email, password });
+      const data = response.data.data;
 
-      // Check if MFA is required
-      if (response.data.data.mfaRequired) {
+      // Check if MFA setup is required (enforcement mode)
+      if (data.mfaSetupRequired) {
+        // Store the MFA setup token and redirect to MFA setup page
+        localStorage.setItem('mfaSetupToken', data.mfaSetupToken);
+        localStorage.setItem('mfaSetupData', JSON.stringify({
+          mfaMode: data.mfaMode,
+          mfaStatus: data.mfaStatus,
+          userId: data.user?.id,
+          email: data.user?.email,
+          username: data.user?.username,
+          gracePeriod: data.gracePeriod || null,
+        }));
+        navigate('/mfa-setup-required');
+        return;
+      }
+
+      // Check if MFA verification is required
+      if (data.mfaRequired) {
         setMfaRequired(true);
-        setMfaChallengeToken(response.data.data.mfaChallengeToken);
+        setMfaChallengeToken(data.mfaChallengeToken);
 
         // Set Email 2FA specific data (Phase 6)
-        const data = response.data.data;
         setMfaMethod(data.mfaMethod || 'totp');
         setAvailableMethods(data.availableMethods || ['totp']);
         setBackupMethod(data.backupMethod || null);
@@ -69,9 +85,18 @@ function LoginPage() {
       }
 
       // Regular login success
-      localStorage.setItem('authToken', response.data.data.tokens.accessToken);
-      localStorage.setItem('refreshToken', response.data.data.tokens.refreshToken);
-      localStorage.setItem('user', JSON.stringify(response.data.data.user));
+      localStorage.setItem('authToken', data.tokens.accessToken);
+      localStorage.setItem('refreshToken', data.tokens.refreshToken);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Store grace period warning if applicable
+      if (data.gracePeriod?.isInGracePeriod) {
+        localStorage.setItem('mfaGracePeriodWarning', JSON.stringify({
+          daysRemaining: data.gracePeriod.daysRemaining,
+          gracePeriodEnd: data.gracePeriod.gracePeriodEnd,
+        }));
+      }
+
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || 'Login failed. Please try again.');

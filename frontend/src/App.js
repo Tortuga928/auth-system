@@ -16,6 +16,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
 import MFASettingsPage from './pages/MFASettingsPage';
+import MFARequiredSetupPage from './pages/MFARequiredSetupPage';
 // Story 9.5: Device Management UI
 import DeviceManagementPage from './pages/DeviceManagementPage';
 import LoginHistoryPage from './pages/LoginHistoryPage';
@@ -122,6 +123,7 @@ function App() {
             <Route path="/verify-email/:token" element={<EmailVerificationPage />} />
             <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="/mfa-settings" element={<MFASettingsPage />} />
+            <Route path="/mfa-setup-required" element={<MFARequiredSetupPage />} />
             {/* Story 9.5: Device Management UI */}
             <Route path="/devices" element={<DeviceManagementPage />} />
             <Route path="/login-history" element={<LoginHistoryPage />} />

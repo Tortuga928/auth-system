@@ -183,4 +183,78 @@ router.post('/force-transition/:userId', isAdmin, mfaAdminController.forceTransi
  */
 router.post('/users/:id/unlock', isAdmin, mfaAdminController.unlockUserMFA);
 
+// ============================================
+// MFA ENFORCEMENT MANAGEMENT
+// ============================================
+
+/**
+ * @route   POST /api/admin/mfa/enforcement/enable
+ * @desc    Enable MFA enforcement for all users
+ * @body    { gracePeriodDays: number (1-90) }
+ * @access  Super Admin
+ *
+ * Enables mandatory MFA setup with grace period for existing users
+ */
+router.post('/enforcement/enable', isSuperAdmin, mfaAdminController.enableEnforcement);
+
+/**
+ * @route   POST /api/admin/mfa/enforcement/disable
+ * @desc    Disable MFA enforcement
+ * @access  Super Admin
+ *
+ * Disables mandatory MFA requirement (users can still opt-in)
+ */
+router.post('/enforcement/disable', isSuperAdmin, mfaAdminController.disableEnforcement);
+
+/**
+ * @route   PUT /api/admin/mfa/enforcement/grace-period
+ * @desc    Update grace period settings
+ * @body    { gracePeriodDays: number (1-90), applyToExisting: boolean }
+ * @access  Super Admin
+ *
+ * Updates grace period duration, optionally applies to existing users
+ */
+router.put('/enforcement/grace-period', isSuperAdmin, mfaAdminController.updateGracePeriod);
+
+/**
+ * @route   GET /api/admin/mfa/enforcement/stats
+ * @desc    Get MFA enforcement statistics
+ * @access  Admin
+ *
+ * Returns enforcement status and user compliance statistics
+ */
+router.get('/enforcement/stats', isAdmin, mfaAdminController.getEnforcementStats);
+
+/**
+ * @route   PUT /api/admin/mfa/enforcement/role-exemption/:role
+ * @desc    Update role exemption from MFA enforcement
+ * @param   role - Role name (user, admin, super_admin)
+ * @body    { exempt: boolean }
+ * @access  Super Admin
+ *
+ * Exempts or includes role from MFA enforcement requirement
+ */
+router.put('/enforcement/role-exemption/:role', isSuperAdmin, mfaAdminController.updateRoleExemption);
+
+/**
+ * @route   GET /api/admin/mfa/enforcement/pending-users
+ * @desc    Get users with pending MFA setup
+ * @query   status - Filter: 'all' | 'grace_period' | 'expired'
+ * @access  Admin
+ *
+ * Returns list of users who need to complete MFA setup
+ */
+router.get('/enforcement/pending-users', isAdmin, mfaAdminController.getPendingMFAUsers);
+
+/**
+ * @route   POST /api/admin/mfa/enforcement/extend-grace/:userId
+ * @desc    Extend grace period for a specific user
+ * @param   userId - User ID
+ * @body    { additionalDays: number (1-30) }
+ * @access  Admin
+ *
+ * Grants additional time for user to complete MFA setup
+ */
+router.post('/enforcement/extend-grace/:userId', isAdmin, mfaAdminController.extendUserGracePeriod);
+
 module.exports = router;

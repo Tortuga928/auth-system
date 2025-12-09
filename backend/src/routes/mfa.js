@@ -21,6 +21,8 @@ const {
   requestMFAReset,
   confirmMFAReset,
   unlockMFAAccount,
+  completeRequiredMFASetup,
+  getEnforcementStatus,
 } = require('../controllers/mfaController');
 
 /**
@@ -114,5 +116,20 @@ router.post('/reset-confirm', confirmMFAReset);
  */
 router.post('/admin/unlock/:userId', authenticate, unlockMFAAccount);
 
+
+
+/**
+ * @route   POST /api/auth/mfa/complete-required-setup
+ * @desc    Complete required MFA setup for new users or users with expired grace period
+ * @access  Public (requires MFA setup token from login)
+ */
+router.post('/complete-required-setup', completeRequiredMFASetup);
+
+/**
+ * @route   GET /api/auth/mfa/enforcement-status
+ * @desc    Get MFA enforcement status for user during setup flow
+ * @access  Public (requires MFA setup token in query or header)
+ */
+router.get('/enforcement-status', getEnforcementStatus);
 
 module.exports = router;

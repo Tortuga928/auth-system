@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import apiService from '../services/api';
 import AvatarUpload from '../components/AvatarUpload';
 import TestEmailModal from '../components/TestEmailModal';
+import GracePeriodWarningBanner from '../components/GracePeriodWarningBanner';
 
 function DashboardPage() {
   const [profileData, setProfileData] = useState(null);
@@ -117,7 +118,11 @@ function DashboardPage() {
   const { user, security, activity } = profileData;
 
   return (
-    <div className="container">
+    <div>
+      {/* Grace Period Warning Banner */}
+      <GracePeriodWarningBanner />
+
+      <div className="container">
       <h1 className="mb-4">Dashboard</h1>
 
       {/* User Profile Card */}
@@ -488,6 +493,7 @@ function DashboardPage() {
           return response.data;
         }}
       />
+      </div>
     </div>
   );
 }

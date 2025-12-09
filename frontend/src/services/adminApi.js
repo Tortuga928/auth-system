@@ -83,18 +83,38 @@ const adminApi = {
   getMFARoleConfig: (role) => api.get(`/api/admin/mfa/roles/${role}`),
   updateMFARoleConfig: (role, data) => api.put(`/api/admin/mfa/roles/${role}`, data),
 
-  // MFA Email Templates
-  getMFATemplates: () => api.get('/api/admin/mfa/email-template'),
-  getMFATemplate: (type) => api.get(`/api/admin/mfa/email-template/${type}`),
-  updateMFATemplate: (type, data) => api.put(`/api/admin/mfa/email-template/${type}`, data),
-  activateMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/activate`),
-  resetMFATemplate: (type) => api.post(`/api/admin/mfa/email-template/${type}/reset`),
+  // Email Templates (new comprehensive API)
+  getEmailTemplates: () => api.get('/api/admin/email-templates'),
+  getEmailTemplate: (key) => api.get(`/api/admin/email-templates/${key}`),
+  updateEmailTemplate: (key, data) => api.put(`/api/admin/email-templates/${key}`, data),
+  setEmailTemplateVersion: (key, version) => api.post(`/api/admin/email-templates/${key}/activate`, { version }),
+  resetEmailTemplate: (key) => api.post(`/api/admin/email-templates/${key}/reset`),
+  resetAllEmailTemplates: () => api.post('/api/admin/email-templates/reset-all'),
+  previewEmailTemplate: (data) => api.post('/api/admin/email-templates/preview', data),
+  sendTemplateTestEmail: (data) => api.post('/api/admin/email-templates/send-test', data),
+  getEmailTemplatePlaceholders: (key) => api.get(`/api/admin/email-templates/${key}/placeholders`),
+
+  // Legacy MFA Templates (redirect to new API for backwards compatibility)
+  getMFATemplates: () => api.get('/api/admin/email-templates'),
+  getMFATemplate: (key) => api.get(`/api/admin/email-templates/${key}`),
+  updateMFATemplate: (key, data) => api.put(`/api/admin/email-templates/${key}`, data),
+  activateMFATemplate: (key) => api.post(`/api/admin/email-templates/${key}/activate`, { version: 'branded' }),
+  resetMFATemplate: (key) => api.post(`/api/admin/email-templates/${key}/reset`),
 
   // MFA User Management
   getMFAUsers: () => api.get('/api/admin/mfa/users'),
   unlockMFAUser: (userId) => api.post(`/api/admin/mfa/users/${userId}/unlock`),
   forceUserMFATransition: (userId, method) => api.post(`/api/admin/mfa/users/${userId}/force-transition`, { method }),
   applySystemMFAChange: (options) => api.post('/api/admin/mfa/apply-method-change', options),
+
+  // MFA Enforcement
+  getEnforcementStats: () => api.get('/api/admin/mfa/enforcement/stats'),
+  enableEnforcement: (data) => api.post('/api/admin/mfa/enforcement/enable', data),
+  disableEnforcement: () => api.post('/api/admin/mfa/enforcement/disable'),
+  updateGracePeriod: (data) => api.put('/api/admin/mfa/enforcement/grace-period', data),
+  updateRoleExemption: (role, data) => api.put(`/api/admin/mfa/enforcement/role-exemption/${role}`, data),
+  getPendingMFAUsers: (status) => api.get('/api/admin/mfa/enforcement/pending-users', { params: { status } }),
+  extendUserGracePeriod: (userId, data) => api.post(`/api/admin/mfa/enforcement/extend-grace/${userId}`, data),
 };
 
 export default adminApi;
